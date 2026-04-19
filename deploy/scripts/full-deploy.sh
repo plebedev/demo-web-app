@@ -3,11 +3,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-CHART_DIR="${CHART_DIR:-${REPO_ROOT}/deply/helm/frontend-bff}"
+CHART_DIR="${CHART_DIR:-${REPO_ROOT}/deploy/helm/frontend-bff}"
 
 RELEASE_NAME="${RELEASE_NAME:-frontend-bff}"
 NAMESPACE="${NAMESPACE:-demo}"
-VALUES_FILE="${VALUES_FILE:-${REPO_ROOT}/deply/helm/frontend-bff/values-demo.yaml}"
+VALUES_FILE="${VALUES_FILE:-${REPO_ROOT}/deploy/helm/frontend-bff/values-demo.yaml}"
 IMAGE_REGISTRY="${IMAGE_REGISTRY:-}"
 IMAGE_REPOSITORY="${IMAGE_REPOSITORY:-frontend-bff}"
 
@@ -23,7 +23,7 @@ OPERATIONAL_PATHS=(
   public
   src
   tsconfig.json
-  deply
+  deploy
 )
 
 if ! git -C "${REPO_ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then

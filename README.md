@@ -8,8 +8,8 @@ This repository is a production-like starter scaffold for a deployable frontend/
 - Health endpoint at `/api/health`
 - BFF proxy entry point at `/api/bff/*` for future backend integration
 - Multi-stage production `Dockerfile`
-- Helm chart under [deply/helm/frontend-bff](/Users/plebedev/github/demo-web-app/deply/helm/frontend-bff)
-- Shell deploy helpers under [deply/scripts](/Users/plebedev/github/demo-web-app/deply/scripts)
+- Helm chart under [deploy/helm/frontend-bff](/Users/plebedev/github/demo-web-app/deploy/helm/frontend-bff)
+- Shell deploy helpers under [deploy/scripts](/Users/plebedev/github/demo-web-app/deploy/scripts)
 - `Makefile` wrappers for common local and deployment commands
 - A single-command full deploy flow that uses the current git commit hash as the image tag
 - A registry-free ship-and-deploy flow for a single remote k3s VM
@@ -21,7 +21,7 @@ This repository is a production-like starter scaffold for a deployable frontend/
 |-- Dockerfile
 |-- Makefile
 |-- README.md
-|-- deply/
+|-- deploy/
 |   |-- helm/
 |   |   `-- frontend-bff/
 |   |       |-- Chart.yaml
@@ -98,7 +98,7 @@ export IMAGE_TAG=2026-04-19.1
 ### Build
 
 ```bash
-./deply/scripts/build-image.sh "$IMAGE_TAG"
+./deploy/scripts/build-image.sh "$IMAGE_TAG"
 ```
 
 Or with `make`:
@@ -110,7 +110,7 @@ make docker-build IMAGE_REGISTRY="$IMAGE_REGISTRY" IMAGE_REPOSITORY="$IMAGE_REPO
 ## Push the container image
 
 ```bash
-./deply/scripts/push-image.sh "$IMAGE_TAG"
+./deploy/scripts/push-image.sh "$IMAGE_TAG"
 ```
 
 Or with `make`:
@@ -135,9 +135,9 @@ The deploy script ensures the namespace exists, then runs `helm upgrade --instal
 ```bash
 export RELEASE_NAME=frontend-bff
 export NAMESPACE=demo
-export VALUES_FILE=deply/helm/frontend-bff/values-demo.yaml
+export VALUES_FILE=deploy/helm/frontend-bff/values-demo.yaml
 
-./deply/scripts/deploy.sh "$IMAGE_TAG"
+./deploy/scripts/deploy.sh "$IMAGE_TAG"
 ```
 
 Or with `make`:
@@ -172,13 +172,13 @@ curl http://<VM_PUBLIC_IP>/api/health
 To inspect release history:
 
 ```bash
-./deply/scripts/rollback.sh
+./deploy/scripts/rollback.sh
 ```
 
 To roll back to a specific revision:
 
 ```bash
-./deply/scripts/rollback.sh 2
+./deploy/scripts/rollback.sh 2
 ```
 
 Or with `make`:
@@ -189,9 +189,9 @@ make rollback RELEASE_NAME="$RELEASE_NAME" NAMESPACE="$NAMESPACE" REVISION=2
 
 ## Helm values
 
-Default chart settings live in [deply/helm/frontend-bff/values.yaml](/Users/plebedev/github/demo-web-app/deply/helm/frontend-bff/values.yaml).
+Default chart settings live in [deploy/helm/frontend-bff/values.yaml](/Users/plebedev/github/demo-web-app/deploy/helm/frontend-bff/values.yaml).
 
-Demo environment overrides live in [deply/helm/frontend-bff/values-demo.yaml](/Users/plebedev/github/demo-web-app/deply/helm/frontend-bff/values-demo.yaml).
+Demo environment overrides live in [deploy/helm/frontend-bff/values-demo.yaml](/Users/plebedev/github/demo-web-app/deploy/helm/frontend-bff/values-demo.yaml).
 
 The chart renders:
 
@@ -213,7 +213,7 @@ make full-deploy IMAGE_REGISTRY=iad.ocir.io/mytenancy
 You can also run the script directly:
 
 ```bash
-IMAGE_REGISTRY=iad.ocir.io/mytenancy ./deply/scripts/full-deploy.sh
+IMAGE_REGISTRY=iad.ocir.io/mytenancy ./deploy/scripts/full-deploy.sh
 ```
 
 What it does:
@@ -231,7 +231,7 @@ The operational cleanliness check covers the app/container/deploy inputs:
 
 - `src/`
 - `public/`
-- `deply/`
+- `deploy/`
 - `Dockerfile`
 - `package.json`
 - `package-lock.json`
@@ -261,6 +261,7 @@ This deploy mode:
 - ships the committed repo snapshot plus the image tar to the VM over `scp`
 - imports the image into the VM's `k3s` containerd
 - runs `helm upgrade --install` on the VM with `image.pullPolicy=Never`
+- prunes remote shipped artifacts and extracted releases, keeping only the newest three by default
 
 Required variables:
 
@@ -278,9 +279,11 @@ Optional variables:
 - `NAMESPACE`
   Default: `demo`
 - `VALUES_FILE`
-  Default: `deply/helm/frontend-bff/values-demo.yaml`
+  Default: `deploy/helm/frontend-bff/values-demo.yaml`
 - `SSH_OPTS`
   Extra SSH/SCP flags, for example: `-i ~/.ssh/oracle_vm`
+- `KEEP_REMOTE_RELEASES`
+  Number of shipped image/source artifacts and extracted release directories to retain on the VM, default: `3`
 
 Example:
 
@@ -299,7 +302,7 @@ VM prerequisites for this flow:
 - `sudo k3s ctr images import` works for your user
 - the remote directory exists or can be created, for example `/srv/frontend-bff`
 
-The remote script used by this flow is [deply/scripts/remote-deploy.sh](/Users/plebedev/github/demo-web-app/deply/scripts/remote-deploy.sh).
+The remote script used by this flow is [deploy/scripts/remote-deploy.sh](/Users/plebedev/github/demo-web-app/deploy/scripts/remote-deploy.sh).
 
 ## Notes for future backend and webhook routes
 

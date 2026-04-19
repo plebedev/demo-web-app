@@ -6,11 +6,11 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 RELEASE_NAME="${RELEASE_NAME:-frontend-bff}"
 NAMESPACE="${NAMESPACE:-demo}"
-VALUES_FILE="${VALUES_FILE:-${REPO_ROOT}/deply/helm/frontend-bff/values-demo.yaml}"
+VALUES_FILE="${VALUES_FILE:-${REPO_ROOT}/deploy/helm/frontend-bff/values-demo.yaml}"
 IMAGE_TAG="${1:-${IMAGE_TAG:-}}"
 IMAGE_REGISTRY="${IMAGE_REGISTRY:-}"
 IMAGE_REPOSITORY="${IMAGE_REPOSITORY:-frontend-bff}"
-CHART_DIR="${CHART_DIR:-${REPO_ROOT}/deply/helm/frontend-bff}"
+CHART_DIR="${CHART_DIR:-${REPO_ROOT}/deploy/helm/frontend-bff}"
 
 if [[ -z "${IMAGE_TAG}" ]]; then
   echo "IMAGE_TAG is required. Pass it as the first argument or export IMAGE_TAG."
