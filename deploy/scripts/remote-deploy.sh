@@ -13,6 +13,7 @@ VALUES_FILE="${VALUES_FILE:-deploy/helm/frontend-bff/values-demo.yaml}"
 IMAGE_REPOSITORY="${IMAGE_REPOSITORY:-frontend-bff}"
 IMAGE_TAG="${IMAGE_TAG:-}"
 IMPORT_IMAGE_COMMAND="${IMPORT_IMAGE_COMMAND:-sudo k3s ctr images import}"
+KUBECONFIG_PATH="${KUBECONFIG_PATH:-/etc/rancher/k3s/k3s.yaml}"
 KEEP_REMOTE_RELEASES="${KEEP_REMOTE_RELEASES:-3}"
 
 if [[ -z "${IMAGE_TAG}" ]]; then
@@ -39,6 +40,7 @@ echo "Importing image into k3s containerd"
 ${IMPORT_IMAGE_COMMAND} "${DEPLOY_ROOT}/artifacts/images/${IMAGE_ARCHIVE_NAME}"
 
 echo "Deploying release ${RELEASE_NAME} to namespace ${NAMESPACE}"
+export KUBECONFIG="${KUBECONFIG_PATH}"
 RELEASE_NAME="${RELEASE_NAME}" \
 NAMESPACE="${NAMESPACE}" \
 VALUES_FILE="${RELEASE_DIR}/${VALUES_FILE}" \

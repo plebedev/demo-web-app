@@ -301,6 +301,7 @@ VM prerequisites for this flow:
 - `kubectl` available on the VM
 - `sudo k3s ctr images import` works for your user
 - the remote directory exists or can be created, for example `/srv/frontend-bff`
+- the k3s kubeconfig is available at `/etc/rancher/k3s/k3s.yaml` or you override `KUBECONFIG_PATH`
 
 The remote script used by this flow is [deploy/scripts/remote-deploy.sh](/Users/plebedev/github/demo-web-app/deploy/scripts/remote-deploy.sh).
 
