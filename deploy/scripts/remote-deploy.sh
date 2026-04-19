@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RELEASE_DIR="${RELEASE_DIR:-$(cd "${SCRIPT_DIR}/../.." && pwd)}"
-DEPLOY_ROOT="$(cd "${RELEASE_DIR}/.." && pwd)"
+DEPLOY_ROOT="$(cd "${RELEASE_DIR}/../.." && pwd)"
 
 SOURCE_ARCHIVE_NAME="${SOURCE_ARCHIVE_NAME:-source.tgz}"
 IMAGE_ARCHIVE_NAME="${IMAGE_ARCHIVE_NAME:-image.tar}"
