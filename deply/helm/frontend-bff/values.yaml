@@ -1,0 +1,48 @@
+namespace: demo
+
+replicaCount: 1
+
+image:
+  registry: ""
+  repository: frontend-bff
+  tag: "dev"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3000
+
+ingress:
+  enabled: true
+  className: traefik
+  annotations: {}
+  path: /
+  pathType: Prefix
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 300m
+    memory: 256Mi
+
+probes:
+  path: /api/health
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3
+
+env:
+  PORT: "3000"
+  APP_NAME: "Frontend BFF"
+  NEXT_PUBLIC_APP_NAME: "Frontend BFF"
+  NEXT_PUBLIC_STAGE: "default"
+  BACKEND_BASE_URL: ""
+
+podAnnotations: {}
+
+nameOverride: ""
+fullnameOverride: ""

@@ -1,0 +1,9 @@
+.git
+.gitignore
+.next
+node_modules
+README.md
+npm-debug.log*
+coverage
+deply
+Makefile

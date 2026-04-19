@@ -1,0 +1,5 @@
+1. Check rollout status:
+   kubectl rollout status deployment/{{ include "frontend-bff.fullname" . }} -n {{ .Values.namespace }}
+
+2. Find the service:
+   kubectl get svc,ingress -n {{ .Values.namespace }}

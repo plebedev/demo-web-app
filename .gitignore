@@ -1,0 +1,11 @@
+.DS_Store
+.idea
+.env
+.env.local
+.env.production.local
+.env.development.local
+.next
+node_modules
+coverage
+npm-debug.log*
+dist
