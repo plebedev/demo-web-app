@@ -12,7 +12,6 @@ This repository is a production-like starter scaffold for a deployable frontend/
 - Helm chart under [deploy/helm/frontend-bff](/Users/plebedev/github/demo-web-app/deploy/helm/frontend-bff)
 - Shell deploy helpers under [deploy/scripts](/Users/plebedev/github/demo-web-app/deploy/scripts)
 - `Taskfile.yml` wrappers for common local and deployment commands
-- A single-command full deploy flow that uses the current git commit hash as the image tag
 - A registry-free ship-and-deploy flow for a single remote k3s VM
 
 ## Repository layout
@@ -94,71 +93,12 @@ If no backend URL resolves, `/api/bff/*` returns `503`, which makes the missing 
 
 ## Build the container image
 
-Images are tagged explicitly. The registry is not hardcoded.
+Images are tagged explicitly. The default image tag is the current short git commit SHA.
 
-### Example environment
-
-```bash
-export IMAGE_REGISTRY=iad.ocir.io/mytenancy
-export IMAGE_REPOSITORY=frontend-bff
-export IMAGE_TAG=2026-04-19.1
-```
-
-### Build
+### Build locally
 
 ```bash
-./deploy/scripts/build-image.sh "$IMAGE_TAG"
-```
-
-Or with `task`:
-
-```bash
-IMAGE_REGISTRY="$IMAGE_REGISTRY" IMAGE_REPOSITORY="$IMAGE_REPOSITORY" IMAGE_TAG="$IMAGE_TAG" task docker-build
-```
-
-## Push the container image
-
-```bash
-./deploy/scripts/push-image.sh "$IMAGE_TAG"
-```
-
-Or with `task`:
-
-```bash
-IMAGE_REGISTRY="$IMAGE_REGISTRY" IMAGE_REPOSITORY="$IMAGE_REPOSITORY" IMAGE_TAG="$IMAGE_TAG" task docker-push
-```
-
-## Deploy to k3s with Helm
-
-The release defaults to:
-
-- Release name: `frontend-bff`
-- Namespace: `demo`
-- Ingress class: `traefik`
-- Path: `/`
-
-The deploy script ensures the namespace exists, then runs `helm upgrade --install`.
-
-### Example deploy
-
-```bash
-export RELEASE_NAME=frontend-bff
-export NAMESPACE=demo
-export VALUES_FILE=deploy/helm/frontend-bff/values-demo.yaml
-
-./deploy/scripts/deploy.sh "$IMAGE_TAG"
-```
-
-Or with `task`:
-
-```bash
-IMAGE_REGISTRY="$IMAGE_REGISTRY" \
-IMAGE_REPOSITORY="$IMAGE_REPOSITORY" \
-IMAGE_TAG="$IMAGE_TAG" \
-RELEASE_NAME="$RELEASE_NAME" \
-NAMESPACE="$NAMESPACE" \
-VALUES_FILE="$VALUES_FILE" \
-task deploy
+task docker-build
 ```
 
 ### Verify the deployment
@@ -211,54 +151,12 @@ The chart renders:
 
 Namespace creation is handled by the deploy script using `kubectl create namespace` if needed, and Helm also runs with `--create-namespace`.
 
-## Single-command full deploy
-
-The recommended deploy command is:
-
-```bash
-IMAGE_REGISTRY=iad.ocir.io/mytenancy task full-deploy
-```
-
-You can also run the script directly:
-
-```bash
-IMAGE_REGISTRY=iad.ocir.io/mytenancy ./deploy/scripts/full-deploy.sh
-```
-
-What it does:
-
-- Verifies the repo already has a commit
-- Refuses to continue if operational files have uncommitted changes
-- Uses the current `HEAD` commit hash as the Docker image tag
-- Runs `npm run build`
-- Runs `helm lint`
-- Builds the image
-- Pushes the image
-- Deploys or upgrades the Helm release in namespace `demo`
-
-The operational cleanliness check covers the app/container/deploy inputs:
-
-- `src/`
-- `public/`
-- `deploy/`
-- `Dockerfile`
-- `package.json`
-- `package-lock.json`
-- `next.config.ts`
-- `next-env.d.ts`
-- `tsconfig.json`
-- `.dockerignore`
-- `.env.example`
-- `.eslintrc.json`
-
-That means doc-only edits such as `README.md` do not block deployment, but anything that can change the running artifact or Kubernetes release does.
-
 ## Registry-free ship deploy to the VM
 
 For a single-node `k3s` VM, the recommended flow is:
 
 ```bash
-DEPLOY_TARGET=opc@<VM_PUBLIC_IP> task ship-deploy
+task ship-deploy
 ```
 
 This deploy mode:
@@ -272,15 +170,10 @@ This deploy mode:
 - runs `helm upgrade --install` on the VM with `image.pullPolicy=Never`
 - prunes remote shipped artifacts and extracted releases, keeping only the newest three by default
 
-Required variables:
-
-- `DEPLOY_TARGET`
-  Example: `opc@203.0.113.10`
-
 Optional variables:
 
 - `DEPLOY_PATH`
-  Remote working directory, default: `/srv/frontend-bff`
+  Remote working directory, default: `/home/ubuntu/frontend-bff-deploy`
 - `IMAGE_REPOSITORY`
   Default: `frontend-bff`
 - `RELEASE_NAME`
@@ -294,13 +187,10 @@ Optional variables:
 - `KEEP_REMOTE_RELEASES`
   Number of shipped image/source artifacts and extracted release directories to retain on the VM, default: `3`
 
-Example:
+Default target VM:
 
 ```bash
-DEPLOY_TARGET=opc@203.0.113.10 \
-DEPLOY_PATH=/srv/frontend-bff \
-SSH_OPTS="-i ~/.ssh/oracle_vm" \
-task ship-deploy
+ubuntu@openclaw
 ```
 
 VM prerequisites for this flow:
@@ -309,7 +199,7 @@ VM prerequisites for this flow:
 - `helm` available on the VM
 - `kubectl` available on the VM
 - `sudo k3s ctr images import` works for your user
-- the remote directory exists or can be created, for example `/srv/frontend-bff`
+- the remote directory exists or can be created, for example `/home/ubuntu/frontend-bff-deploy`
 - the k3s kubeconfig is available at `/etc/rancher/k3s/k3s.yaml` or you override `KUBECONFIG_PATH`
 
 The remote script used by this flow is [deploy/scripts/remote-deploy.sh](/Users/plebedev/github/demo-web-app/deploy/scripts/remote-deploy.sh).
@@ -329,9 +219,6 @@ This repo is designed to stay focused on the frontend/BFF layer. When the backen
 task install
 task dev
 task build
-DEPLOY_TARGET=opc@203.0.113.10 task ship-deploy
-IMAGE_TAG=2026-04-19.1 IMAGE_REGISTRY=iad.ocir.io/mytenancy task docker-build
-IMAGE_TAG=2026-04-19.1 IMAGE_REGISTRY=iad.ocir.io/mytenancy task docker-push
-IMAGE_TAG=2026-04-19.1 IMAGE_REGISTRY=iad.ocir.io/mytenancy task deploy
-IMAGE_REGISTRY=iad.ocir.io/mytenancy task full-deploy
+task docker-build
+task ship-deploy
 ```
