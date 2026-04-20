@@ -7,10 +7,11 @@ This repository is a production-like starter scaffold for a deployable frontend/
 - Next.js app with a simple "Coming soon" page
 - Health endpoint at `/api/health`
 - BFF proxy entry point at `/api/bff/*` for future backend integration
+- A frontend status card that checks backend connectivity through the BFF
 - Multi-stage production `Dockerfile`
 - Helm chart under [deploy/helm/frontend-bff](/Users/plebedev/github/demo-web-app/deploy/helm/frontend-bff)
 - Shell deploy helpers under [deploy/scripts](/Users/plebedev/github/demo-web-app/deploy/scripts)
-- `Makefile` wrappers for common local and deployment commands
+- `Taskfile.yml` wrappers for common local and deployment commands
 - A single-command full deploy flow that uses the current git commit hash as the image tag
 - A registry-free ship-and-deploy flow for a single remote k3s VM
 
@@ -19,7 +20,7 @@ This repository is a production-like starter scaffold for a deployable frontend/
 ```text
 .
 |-- Dockerfile
-|-- Makefile
+|-- Taskfile.yml
 |-- README.md
 |-- deploy/
 |   |-- helm/
@@ -45,7 +46,7 @@ This repository is a production-like starter scaffold for a deployable frontend/
 1. Install dependencies:
 
 ```bash
-npm install
+task install
 ```
 
 2. Create a local env file if you want custom config:
@@ -57,7 +58,7 @@ cp .env.example .env.local
 3. Run the app:
 
 ```bash
-npm run dev
+task dev
 ```
 
 4. Open [http://localhost:3000](http://localhost:3000)
@@ -65,7 +66,7 @@ npm run dev
 ## Local production build test
 
 ```bash
-npm run build
+task build
 npm run start
 ```
 
@@ -79,9 +80,17 @@ The app is prepared for future backend integration through environment variables
 | `APP_NAME` | Server-side app label | `Frontend BFF` |
 | `NEXT_PUBLIC_APP_NAME` | Frontend app label | `Frontend BFF` |
 | `NEXT_PUBLIC_STAGE` | Frontend environment marker | `demo` |
-| `BACKEND_BASE_URL` | Base URL used by `/api/bff/*` proxy routes | `http://backend.demo.svc.cluster.local:8080` |
+| `BACKEND_BASE_URL` | Explicit override for `/api/bff/*` proxy routes | `http://127.0.0.1:8000/api` |
+| `BACKEND_LOCAL_URL` | Local-development backend base URL | `http://127.0.0.1:8000/api` |
+| `BACKEND_CLUSTER_URL` | Cluster-internal backend base URL | `http://backend-api.demo.svc.cluster.local/api` |
 
-If `BACKEND_BASE_URL` is unset, `/api/bff/*` returns `503`, which makes it obvious that the backend wiring is not ready yet.
+Resolution order is:
+
+- `BACKEND_BASE_URL` if set
+- otherwise `BACKEND_LOCAL_URL` during `npm run dev`
+- otherwise `BACKEND_CLUSTER_URL` in production-like runtime
+
+If no backend URL resolves, `/api/bff/*` returns `503`, which makes the missing backend wiring obvious.
 
 ## Build the container image
 
@@ -101,10 +110,10 @@ export IMAGE_TAG=2026-04-19.1
 ./deploy/scripts/build-image.sh "$IMAGE_TAG"
 ```
 
-Or with `make`:
+Or with `task`:
 
 ```bash
-make docker-build IMAGE_REGISTRY="$IMAGE_REGISTRY" IMAGE_REPOSITORY="$IMAGE_REPOSITORY" IMAGE_TAG="$IMAGE_TAG"
+IMAGE_REGISTRY="$IMAGE_REGISTRY" IMAGE_REPOSITORY="$IMAGE_REPOSITORY" IMAGE_TAG="$IMAGE_TAG" task docker-build
 ```
 
 ## Push the container image
@@ -113,10 +122,10 @@ make docker-build IMAGE_REGISTRY="$IMAGE_REGISTRY" IMAGE_REPOSITORY="$IMAGE_REPO
 ./deploy/scripts/push-image.sh "$IMAGE_TAG"
 ```
 
-Or with `make`:
+Or with `task`:
 
 ```bash
-make docker-push IMAGE_REGISTRY="$IMAGE_REGISTRY" IMAGE_REPOSITORY="$IMAGE_REPOSITORY" IMAGE_TAG="$IMAGE_TAG"
+IMAGE_REGISTRY="$IMAGE_REGISTRY" IMAGE_REPOSITORY="$IMAGE_REPOSITORY" IMAGE_TAG="$IMAGE_TAG" task docker-push
 ```
 
 ## Deploy to k3s with Helm
@@ -140,16 +149,16 @@ export VALUES_FILE=deploy/helm/frontend-bff/values-demo.yaml
 ./deploy/scripts/deploy.sh "$IMAGE_TAG"
 ```
 
-Or with `make`:
+Or with `task`:
 
 ```bash
-make deploy \
-  IMAGE_REGISTRY="$IMAGE_REGISTRY" \
-  IMAGE_REPOSITORY="$IMAGE_REPOSITORY" \
-  IMAGE_TAG="$IMAGE_TAG" \
-  RELEASE_NAME="$RELEASE_NAME" \
-  NAMESPACE="$NAMESPACE" \
-  VALUES_FILE="$VALUES_FILE"
+IMAGE_REGISTRY="$IMAGE_REGISTRY" \
+IMAGE_REPOSITORY="$IMAGE_REPOSITORY" \
+IMAGE_TAG="$IMAGE_TAG" \
+RELEASE_NAME="$RELEASE_NAME" \
+NAMESPACE="$NAMESPACE" \
+VALUES_FILE="$VALUES_FILE" \
+task deploy
 ```
 
 ### Verify the deployment
@@ -181,10 +190,10 @@ To roll back to a specific revision:
 ./deploy/scripts/rollback.sh 2
 ```
 
-Or with `make`:
+Or with `task`:
 
 ```bash
-make rollback RELEASE_NAME="$RELEASE_NAME" NAMESPACE="$NAMESPACE" REVISION=2
+RELEASE_NAME="$RELEASE_NAME" NAMESPACE="$NAMESPACE" REVISION=2 task rollback
 ```
 
 ## Helm values
@@ -207,7 +216,7 @@ Namespace creation is handled by the deploy script using `kubectl create namespa
 The recommended deploy command is:
 
 ```bash
-make full-deploy IMAGE_REGISTRY=iad.ocir.io/mytenancy
+IMAGE_REGISTRY=iad.ocir.io/mytenancy task full-deploy
 ```
 
 You can also run the script directly:
@@ -249,7 +258,7 @@ That means doc-only edits such as `README.md` do not block deployment, but anyth
 For a single-node `k3s` VM, the recommended flow is:
 
 ```bash
-make ship-deploy DEPLOY_TARGET=opc@<VM_PUBLIC_IP>
+DEPLOY_TARGET=opc@<VM_PUBLIC_IP> task ship-deploy
 ```
 
 This deploy mode:
@@ -288,10 +297,10 @@ Optional variables:
 Example:
 
 ```bash
-make ship-deploy \
-  DEPLOY_TARGET=opc@203.0.113.10 \
-  DEPLOY_PATH=/srv/frontend-bff \
-  SSH_OPTS="-i ~/.ssh/oracle_vm"
+DEPLOY_TARGET=opc@203.0.113.10 \
+DEPLOY_PATH=/srv/frontend-bff \
+SSH_OPTS="-i ~/.ssh/oracle_vm" \
+task ship-deploy
 ```
 
 VM prerequisites for this flow:
@@ -317,12 +326,12 @@ This repo is designed to stay focused on the frontend/BFF layer. When the backen
 ## Helpful commands
 
 ```bash
-make install
-make dev
-make build
-make ship-deploy DEPLOY_TARGET=opc@203.0.113.10
-make docker-build IMAGE_TAG=2026-04-19.1 IMAGE_REGISTRY=iad.ocir.io/mytenancy
-make docker-push IMAGE_TAG=2026-04-19.1 IMAGE_REGISTRY=iad.ocir.io/mytenancy
-make deploy IMAGE_TAG=2026-04-19.1 IMAGE_REGISTRY=iad.ocir.io/mytenancy
-make full-deploy IMAGE_REGISTRY=iad.ocir.io/mytenancy
+task install
+task dev
+task build
+DEPLOY_TARGET=opc@203.0.113.10 task ship-deploy
+IMAGE_TAG=2026-04-19.1 IMAGE_REGISTRY=iad.ocir.io/mytenancy task docker-build
+IMAGE_TAG=2026-04-19.1 IMAGE_REGISTRY=iad.ocir.io/mytenancy task docker-push
+IMAGE_TAG=2026-04-19.1 IMAGE_REGISTRY=iad.ocir.io/mytenancy task deploy
+IMAGE_REGISTRY=iad.ocir.io/mytenancy task full-deploy
 ```

@@ -19,7 +19,7 @@ OPERATIONAL_PATHS=(
   .eslintrc.json
   .gitignore
   Dockerfile
-  Makefile
+  Taskfile.yml
   next-env.d.ts
   next.config.ts
   package-lock.json

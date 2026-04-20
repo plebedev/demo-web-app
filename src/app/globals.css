@@ -116,6 +116,28 @@ code {
   color: var(--muted);
 }
 
+.status-stack {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.provider-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  background: rgba(123, 224, 195, 0.08);
+}
+
 @media (max-width: 640px) {
   .shell {
     width: min(100% - 1.25rem, 1100px);

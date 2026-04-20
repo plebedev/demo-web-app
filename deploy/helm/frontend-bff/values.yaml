@@ -16,6 +16,7 @@ service:
 ingress:
   enabled: true
   className: traefik
+  host: demo.lebedev.ai
   annotations: {}
   path: /
   pathType: Prefix
@@ -41,6 +42,8 @@ env:
   NEXT_PUBLIC_APP_NAME: "Frontend BFF"
   NEXT_PUBLIC_STAGE: "default"
   BACKEND_BASE_URL: ""
+  BACKEND_LOCAL_URL: ""
+  BACKEND_CLUSTER_URL: "http://backend-api.demo.svc.cluster.local/api"
 
 podAnnotations: {}
 

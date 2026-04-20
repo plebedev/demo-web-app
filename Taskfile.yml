@@ -1,0 +1,46 @@
+version: "3"
+
+tasks:
+  install:
+    cmds:
+      - npm install
+
+  dev:
+    cmds:
+      - npm run dev
+
+  lint:
+    cmds:
+      - npm run lint
+
+  build:
+    cmds:
+      - npm run build
+
+  docker-build:
+    cmds:
+      - IMAGE_REGISTRY="${IMAGE_REGISTRY:-}" IMAGE_REPOSITORY="${IMAGE_REPOSITORY:-frontend-bff}" IMAGE_TAG="${IMAGE_TAG:-dev}" bash ./deploy/scripts/build-image.sh
+
+  docker-push:
+    cmds:
+      - IMAGE_REGISTRY="${IMAGE_REGISTRY:-}" IMAGE_REPOSITORY="${IMAGE_REPOSITORY:-frontend-bff}" IMAGE_TAG="${IMAGE_TAG:-dev}" bash ./deploy/scripts/push-image.sh
+
+  deploy:
+    cmds:
+      - RELEASE_NAME="${RELEASE_NAME:-frontend-bff}" NAMESPACE="${NAMESPACE:-demo}" VALUES_FILE="${VALUES_FILE:-deploy/helm/frontend-bff/values-demo.yaml}" IMAGE_REGISTRY="${IMAGE_REGISTRY:-}" IMAGE_REPOSITORY="${IMAGE_REPOSITORY:-frontend-bff}" IMAGE_TAG="${IMAGE_TAG:-dev}" bash ./deploy/scripts/deploy.sh
+
+  full-deploy:
+    cmds:
+      - RELEASE_NAME="${RELEASE_NAME:-frontend-bff}" NAMESPACE="${NAMESPACE:-demo}" VALUES_FILE="${VALUES_FILE:-deploy/helm/frontend-bff/values-demo.yaml}" IMAGE_REGISTRY="${IMAGE_REGISTRY:-}" IMAGE_REPOSITORY="${IMAGE_REPOSITORY:-frontend-bff}" bash ./deploy/scripts/full-deploy.sh
+
+  ship-deploy:
+    cmds:
+      - RELEASE_NAME="${RELEASE_NAME:-frontend-bff}" NAMESPACE="${NAMESPACE:-demo}" VALUES_FILE="${VALUES_FILE:-deploy/helm/frontend-bff/values-demo.yaml}" IMAGE_REPOSITORY="${IMAGE_REPOSITORY:-frontend-bff}" DEPLOY_TARGET="${DEPLOY_TARGET:-ubuntu@openclaw}" DEPLOY_PATH="${DEPLOY_PATH:-/home/ubuntu/frontend-bff-deploy}" SSH_OPTS="${SSH_OPTS:-}" KEEP_REMOTE_RELEASES="${KEEP_REMOTE_RELEASES:-3}" bash ./deploy/scripts/ship-deploy.sh
+
+  rollback:
+    cmds:
+      - RELEASE_NAME="${RELEASE_NAME:-frontend-bff}" NAMESPACE="${NAMESPACE:-demo}" REVISION="${REVISION:-}" bash ./deploy/scripts/rollback.sh
+
+  history:
+    cmds:
+      - helm history "${RELEASE_NAME:-frontend-bff}" --namespace "${NAMESPACE:-demo}"

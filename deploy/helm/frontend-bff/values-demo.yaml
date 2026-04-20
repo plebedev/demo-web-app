@@ -7,4 +7,6 @@ env:
   APP_NAME: "Demo Frontend BFF"
   NEXT_PUBLIC_APP_NAME: "Demo Frontend BFF"
   NEXT_PUBLIC_STAGE: "demo"
-  BACKEND_BASE_URL: "http://backend.demo.svc.cluster.local:8080"
+  BACKEND_BASE_URL: ""
+  BACKEND_LOCAL_URL: ""
+  BACKEND_CLUSTER_URL: "http://backend-api.demo.svc.cluster.local/api"

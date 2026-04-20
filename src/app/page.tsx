@@ -1,4 +1,5 @@
 import { getRuntimeConfig } from "@/lib/config";
+import { BackendStatusCard } from "@/components/backend-status-card";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,10 @@ export default function Home() {
             <span className="label">BFF route base</span>
             <strong>{backendConfigured ? "/api/bff/*" : "not configured yet"}</strong>
           </article>
+          <article className="card">
+            <span className="label">Backend target</span>
+            <strong>{backendConfigured ? config.backendBaseUrl : "not configured yet"}</strong>
+          </article>
         </div>
       </section>
 
@@ -38,10 +43,13 @@ export default function Home() {
         <article className="panel">
           <h2>Ready for later backend integration</h2>
           <p>
-            Set <code>BACKEND_BASE_URL</code> to enable pass-through requests
-            under <code>/api/bff/*</code> without changing the deployment shape.
+            Use <code>BACKEND_BASE_URL</code> as an explicit override, or set
+            <code> BACKEND_LOCAL_URL</code> and <code>BACKEND_CLUSTER_URL</code>
+            so local development and the shipped cluster runtime can resolve the
+            backend cleanly without changing application code.
           </p>
         </article>
+        <BackendStatusCard />
       </section>
     </main>
   );

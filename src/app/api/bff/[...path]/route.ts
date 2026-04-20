@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveBackendBaseUrl } from "@/lib/config";
 
 async function proxyRequest(request: NextRequest, path: string[]) {
-  const backendBaseUrl = process.env.BACKEND_BASE_URL;
+  const backendBaseUrl = resolveBackendBaseUrl();
 
   if (!backendBaseUrl) {
     return NextResponse.json(
       {
-        error: "BACKEND_BASE_URL is not configured"
+        error: "Backend base URL is not configured"
       },
       { status: 503 }
     );
