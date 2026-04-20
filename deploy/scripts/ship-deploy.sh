@@ -16,7 +16,7 @@ KEEP_REMOTE_RELEASES="${KEEP_REMOTE_RELEASES:-3}"
 OPERATIONAL_PATHS=(
   .dockerignore
   .env.example
-  .eslintrc.json
+  eslint.config.mjs
   .gitignore
   Dockerfile
   Taskfile.yml
@@ -76,6 +76,9 @@ cleanup() {
 trap cleanup EXIT
 
 echo "Using image tag ${IMAGE_TAG}"
+echo "Running ESLint"
+(cd "${REPO_ROOT}" && npm run lint)
+
 echo "Running Next.js production build"
 (cd "${REPO_ROOT}" && npm run build)
 
