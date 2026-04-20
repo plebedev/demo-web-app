@@ -41,19 +41,12 @@ ${IMPORT_IMAGE_COMMAND} "${DEPLOY_ROOT}/artifacts/images/${IMAGE_ARCHIVE_NAME}"
 
 echo "Deploying release ${RELEASE_NAME} to namespace ${NAMESPACE}"
 export KUBECONFIG="${KUBECONFIG_PATH}"
-RELEASE_NAME="${RELEASE_NAME}" \
-NAMESPACE="${NAMESPACE}" \
-VALUES_FILE="${RELEASE_DIR}/${VALUES_FILE}" \
-IMAGE_REGISTRY="" \
-IMAGE_REPOSITORY="${IMAGE_REPOSITORY}" \
-IMAGE_TAG="${IMAGE_TAG}" \
 helm upgrade --install "${RELEASE_NAME}" "${RELEASE_DIR}/deploy/helm/frontend-bff" \
   --namespace "${NAMESPACE}" \
   --create-namespace \
   -f "${RELEASE_DIR}/deploy/helm/frontend-bff/values.yaml" \
   -f "${RELEASE_DIR}/${VALUES_FILE}" \
   --set-string namespace="${NAMESPACE}" \
-  --set-string image.registry="" \
   --set-string image.repository="${IMAGE_REPOSITORY}" \
   --set-string image.tag="${IMAGE_TAG}" \
   --set-string image.pullPolicy="Never" \

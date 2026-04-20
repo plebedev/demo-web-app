@@ -3,7 +3,6 @@ namespace: demo
 replicaCount: 1
 
 image:
-  registry: ""
   repository: frontend-bff
   tag: "dev"
   pullPolicy: IfNotPresent
