@@ -15,9 +15,55 @@ export type DemoRun = {
   completed_at: string | null;
   failed_at: string | null;
   input_text: string | null;
+  normalized_input_text: string | null;
   input_metadata_json: Record<string, unknown> | null;
+  uploaded_files_json: UploadedRunFile[] | null;
+  ingestion_summary_json: RunIngestionSummary | null;
   output_brief_json: Record<string, unknown> | null;
   follow_up_count: number;
+};
+
+export type UploadedRunFile = {
+  file_name: string;
+  content_type: string;
+  file_size_bytes: number;
+  extracted_text: string;
+  extracted_text_bytes: number;
+  trimmed: boolean;
+};
+
+export type RejectedRunFile = {
+  file_name: string;
+  content_type: string;
+  reason: string;
+};
+
+export type RunIngestionSummary = {
+  warnings: string[];
+  counts: {
+    accepted_files: number;
+    rejected_files: number;
+    trimmed_files: number;
+    accepted_pasted_text: number;
+    trimmed_pasted_text: number;
+  };
+  accepted_files: Array<{
+    file_name: string;
+    content_type: string;
+    file_size_bytes: number;
+    extracted_text_bytes: number;
+    trimmed: boolean;
+  }>;
+  rejected_files: RejectedRunFile[];
+  limits: {
+    max_files_per_run: number;
+    max_file_size_bytes: number;
+    max_extracted_text_bytes: number;
+    max_total_workflow_text_bytes: number;
+    max_pasted_text_bytes: number;
+    strategy: string;
+  };
+  workflow_text_bytes: number;
 };
 
 export type DemoRunListResponse = {
@@ -73,4 +119,21 @@ export function deriveRunTitle(inputText: string): string {
 
 export function formatRunStatus(status: RunStatus): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+export function summarizeStickyBoardText(
+  run: DemoRun | null,
+  draftText: string,
+): string {
+  if (draftText.trim()) {
+    return draftText;
+  }
+
+  if (run?.uploaded_files_json?.length) {
+    return run.uploaded_files_json
+      .map((file) => file.extracted_text)
+      .join('\n');
+  }
+
+  return '';
 }

@@ -530,6 +530,12 @@ a {
   gap: 0.85rem;
 }
 
+.file-input-block,
+.warning-stack {
+  display: grid;
+  gap: 0.6rem;
+}
+
 .text-area {
   width: 100%;
   min-height: 18rem;
@@ -545,6 +551,42 @@ a {
 .editor-meta-row {
   color: var(--muted);
   font-size: 0.92rem;
+}
+
+.source-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.source-list li {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid rgba(29, 79, 128, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.source-list span {
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.warning-text {
+  margin: 0;
+  padding: 0.85rem 0.95rem;
+  border-radius: 16px;
+  color: #6d5220;
+  line-height: 1.6;
+  background: rgba(234, 194, 112, 0.24);
+}
+
+.editor-panels--results {
+  margin-top: 1rem;
 }
 
 .section-detail--compact {

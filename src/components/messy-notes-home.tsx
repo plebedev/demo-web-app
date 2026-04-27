@@ -131,9 +131,9 @@ export function MessyNotesHome() {
           </p>
           <div className="hero-badges">
             <span>Pasted text first</span>
+            <span>File upload ingestion</span>
             <span>Sticky-note preview</span>
             <span>Backend-persisted runs</span>
-            <span>No fake brief output yet</span>
           </div>
         </div>
 
@@ -150,8 +150,8 @@ export function MessyNotesHome() {
             </li>
           </ul>
           <p className="access-note">
-            File upload UI can be scaffolded later. This milestone keeps the
-            saved run model real without pretending full ingestion exists.
+            This workspace keeps the limits honest: text only, no OCR, no web
+            lookup, and fixed trimming when the demo brain gets crowded.
           </p>
         </section>
       </section>
