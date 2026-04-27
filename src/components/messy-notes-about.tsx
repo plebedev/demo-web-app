@@ -69,10 +69,19 @@ export function MessyNotesAbout() {
           <article className="section-card">
             <p className="card-kicker">Workflow direction</p>
             <ul className="section-list">
-              <li>Config-driven agent/tool wiring is planned architecture.</li>
-              <li>This milestone only persists runs and status transitions.</li>
-              <li>No fake completed brief output is shown.</li>
-              <li>The async processor remains an honest next step.</li>
+              <li>Workflow definitions now load from typed YAML config.</li>
+              <li>
+                Agent prompts are assembled from base prompts plus tool
+                instructions.
+              </li>
+              <li>
+                Bounded handoffs, future parallel steps, and post-run audits are
+                configured explicitly.
+              </li>
+              <li>
+                The final orchestration and audit execution engine remain honest
+                next steps.
+              </li>
             </ul>
           </article>
         </div>

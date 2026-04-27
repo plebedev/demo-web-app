@@ -34,6 +34,7 @@ describe('MessyNotesRunPage', () => {
             JSON.stringify({
               id: 7,
               status: 'draft',
+              workflow_key: 'messy-notes-v1',
               title: 'Board prep',
               created_at: '2026-04-27T00:00:00Z',
               updated_at: '2026-04-27T00:00:00Z',
@@ -99,6 +100,7 @@ describe('MessyNotesRunPage', () => {
                 {
                   id: 7,
                   status: 'draft',
+                  workflow_key: 'messy-notes-v1',
                   title: 'Board prep',
                   created_at: '2026-04-27T00:00:00Z',
                   updated_at: '2026-04-27T00:00:00Z',
@@ -150,6 +152,7 @@ describe('MessyNotesRunPage', () => {
             JSON.stringify({
               id: 7,
               status: 'draft',
+              workflow_key: 'messy-notes-v1',
               title: 'Board prep',
               created_at: '2026-04-27T00:00:00Z',
               updated_at: '2026-04-27T00:00:00Z',
@@ -213,6 +216,7 @@ describe('MessyNotesRunPage', () => {
                 {
                   id: 7,
                   status: 'draft',
+                  workflow_key: 'messy-notes-v1',
                   title: 'Board prep',
                   created_at: '2026-04-27T00:00:00Z',
                   updated_at: '2026-04-27T00:00:00Z',
@@ -242,6 +246,7 @@ describe('MessyNotesRunPage', () => {
             JSON.stringify({
               id: 7,
               status: 'submitted',
+              workflow_key: 'messy-notes-v1',
               title: 'Board prep',
               created_at: '2026-04-27T00:00:00Z',
               updated_at: '2026-04-27T00:00:00Z',

@@ -8,6 +8,7 @@ export type RunStatus =
 export type DemoRun = {
   id: number;
   status: RunStatus;
+  workflow_key: string;
   title: string | null;
   created_at: string;
   updated_at: string;
