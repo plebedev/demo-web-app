@@ -1,13 +1,15 @@
-# Frontend BFF Starter
+# Invite-Only Demo Frontend
 
-This repository is a production-like starter scaffold for a deployable frontend/BFF service targeting a single-node `k3s` cluster. It is intentionally minimal, but it already has the shape you would keep when the UI and backend integration grow.
+This repository is the invite-only frontend/BFF for the phase-1 demo. It stays intentionally small, but it now includes the browser-facing invite gate, signed-token persistence, protected app shell behavior, and explicit demo guardrails.
 
 ## What is included
 
-- Next.js app with a simple "Coming soon" page
+- Next.js app with an invite-only phase-1 shell
 - Health endpoint at `/api/health`
-- BFF proxy entry point at `/api/bff/*` for future backend integration
-- A frontend status card that checks backend connectivity through the BFF
+- BFF proxy entry point at `/api/bff/*` for backend integration
+- Browser localStorage persistence for the phase-1 signed access token
+- A protected frontend status card that checks backend connectivity through the BFF
+- Vitest + Testing Library tests for token-gating behavior
 - Multi-stage production `Dockerfile`
 - Helm chart under [deploy/helm/frontend-bff](/Users/plebedev/github/demo-web-app/deploy/helm/frontend-bff)
 - Shell deploy helpers under [deploy/scripts](/Users/plebedev/github/demo-web-app/deploy/scripts)
@@ -62,11 +64,55 @@ task dev
 
 4. Open [http://localhost:3000](http://localhost:3000)
 
+## Demo guardrails
+
+This is a demo, not a general-purpose assistant.
+
+Supported phase-1 inputs:
+
+- pasted text
+- text file upload
+- PDF upload with extractable text
+
+Not supported in phase 1:
+
+- images
+- OCR
+- audio/video
+- web lookup
+
+Current hard-limit placeholders:
+
+- `NEXT_PUBLIC_MAX_FILES_PER_RUN`
+- `NEXT_PUBLIC_MAX_FILE_SIZE_BYTES`
+- `NEXT_PUBLIC_MAX_EXTRACTED_TEXT_BYTES`
+- `NEXT_PUBLIC_MAX_TOTAL_WORKFLOW_TEXT_BYTES`
+
+Follow-up rules:
+
+- one generated brief per run
+- at most one follow-up question after brief generation
+- the follow-up must be about the generated brief
+- after that, the user must start a new run
+
+The full brief workflow is not implemented yet. The UI documents these guardrails now, and the codebase contains TODO boundaries where the real brief-generation flow should enforce them later.
+
 ## Local production build test
 
 ```bash
 task build
 npm run start
+```
+
+## Tests
+
+Run the normal frontend checks with:
+
+```bash
+npm run lint
+npm run typecheck
+npm run test
+npm run build
 ```
 
 ## Runtime configuration
@@ -82,6 +128,10 @@ The app is prepared for future backend integration through environment variables
 | `BACKEND_BASE_URL` | Explicit override for `/api/bff/*` proxy routes | `http://127.0.0.1:8000/api` |
 | `BACKEND_LOCAL_URL` | Local-development backend base URL | `http://127.0.0.1:8000/api` |
 | `BACKEND_CLUSTER_URL` | Cluster-internal backend base URL | `http://backend-api.demo.svc.cluster.local/api` |
+| `NEXT_PUBLIC_MAX_FILES_PER_RUN` | UI-visible phase-1 max files per run placeholder | `3` |
+| `NEXT_PUBLIC_MAX_FILE_SIZE_BYTES` | UI-visible phase-1 max file size placeholder | `5242880` |
+| `NEXT_PUBLIC_MAX_EXTRACTED_TEXT_BYTES` | UI-visible extracted-text limit placeholder | `250000` |
+| `NEXT_PUBLIC_MAX_TOTAL_WORKFLOW_TEXT_BYTES` | UI-visible total workflow text limit placeholder | `400000` |
 
 Resolution order is:
 
@@ -204,6 +254,13 @@ VM prerequisites for this flow:
 
 The remote script used by this flow is [deploy/scripts/remote-deploy.sh](/Users/plebedev/github/demo-web-app/deploy/scripts/remote-deploy.sh).
 
+## Access model
+
+- First screen is invitation-code entry when this browser has no valid access token
+- Successful code redemption returns a signed backend token and stores it in localStorage
+- Protected UI calls send the token through the BFF to the backend
+- If the backend rejects the token as invalid or expired, the UI clears local state and returns to invitation entry
+
 ## Notes for future backend and webhook routes
 
 This repo is designed to stay focused on the frontend/BFF layer. When the backend arrives in its own repo:
@@ -218,6 +275,7 @@ This repo is designed to stay focused on the frontend/BFF layer. When the backen
 ```bash
 task install
 task dev
+task test
 task build
 task docker-build
 task ship-deploy

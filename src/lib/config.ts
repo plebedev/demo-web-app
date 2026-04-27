@@ -18,6 +18,16 @@ export function resolveBackendBaseUrl(): string {
   return process.env.BACKEND_CLUSTER_URL || process.env.BACKEND_LOCAL_URL || '';
 }
 
+export function resolveBackendRootUrl(): string {
+  const backendBaseUrl = resolveBackendBaseUrl();
+
+  if (!backendBaseUrl) {
+    return '';
+  }
+
+  return backendBaseUrl.replace(/\/api\/?$/, '');
+}
+
 export function getRuntimeConfig(): RuntimeConfig {
   return {
     appName:

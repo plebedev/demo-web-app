@@ -4,9 +4,13 @@ image:
   tag: "demo"
 
 env:
-  APP_NAME: "Demo Frontend BFF"
-  NEXT_PUBLIC_APP_NAME: "Demo Frontend BFF"
+  APP_NAME: "Invite-Only Demo"
+  NEXT_PUBLIC_APP_NAME: "Invite-Only Demo"
   NEXT_PUBLIC_STAGE: "demo"
   BACKEND_BASE_URL: ""
   BACKEND_LOCAL_URL: ""
   BACKEND_CLUSTER_URL: "http://backend-api.demo.svc.cluster.local/api"
+  NEXT_PUBLIC_MAX_FILES_PER_RUN: "3"
+  NEXT_PUBLIC_MAX_FILE_SIZE_BYTES: "5242880"
+  NEXT_PUBLIC_MAX_EXTRACTED_TEXT_BYTES: "250000"
+  NEXT_PUBLIC_MAX_TOTAL_WORKFLOW_TEXT_BYTES: "400000"

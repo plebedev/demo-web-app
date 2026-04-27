@@ -13,6 +13,17 @@ tasks:
     cmds:
       - npm run lint
 
+  verify:
+    cmds:
+      - npm run lint
+      - npm run typecheck
+      - npm run test
+      - npm run build
+
+  test:
+    cmds:
+      - npm run test
+
   build:
     cmds:
       - npm run build

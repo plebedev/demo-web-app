@@ -1,24 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-
-type ProviderStatus = {
-  configured: boolean;
-};
-
-type BackendStatus = {
-  database_ready: boolean;
-  providers: {
-    twilio: ProviderStatus;
-    plivo: ProviderStatus;
-    llm: ProviderStatus;
-  };
-};
+import React, { useEffect, useState } from 'react';
 
 type ReadinessState = 'checking' | 'ready' | 'not-ready';
 
 function getReadinessState(
-  status: BackendStatus | null,
+  status: boolean,
   error: string | null,
 ): ReadinessState {
   if (error) {
@@ -29,11 +16,11 @@ function getReadinessState(
     return 'checking';
   }
 
-  return status.database_ready ? 'ready' : 'not-ready';
+  return 'ready';
 }
 
 export function BackendStatusCard() {
-  const [status, setStatus] = useState<BackendStatus | null>(null);
+  const [status, setStatus] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -41,7 +28,7 @@ export function BackendStatusCard() {
 
     async function loadStatus() {
       try {
-        const response = await fetch('/api/bff/status', {
+        const response = await fetch('/api/backend-health', {
           cache: 'no-store',
         });
 
@@ -52,18 +39,19 @@ export function BackendStatusCard() {
           );
         }
 
-        const payload = (await response.json()) as BackendStatus;
+        await response.json();
         if (!active) {
           return;
         }
 
-        setStatus(payload);
+        setStatus(true);
         setError(null);
       } catch (requestError) {
         if (!active) {
           return;
         }
 
+        setStatus(false);
         setError(
           requestError instanceof Error
             ? requestError.message
@@ -80,17 +68,15 @@ export function BackendStatusCard() {
 
   const readiness = getReadinessState(status, error);
   const heading =
-    readiness === 'ready'
-      ? 'Backend services ready'
-      : 'Backend services not ready';
+    readiness === 'ready' ? 'Backend process reachable' : 'Backend unavailable';
   const detail =
     readiness === 'checking'
-      ? 'Checking backend connectivity through the BFF.'
+      ? 'Checking whether the backend service responds to an unprotected health probe.'
       : readiness === 'ready'
-        ? 'Backend status endpoint is reachable and the service reports ready.'
+        ? 'The backend health endpoint is responding. This only indicates the backend process is up.'
         : error
           ? error
-          : 'The backend responded, but it is not reporting database readiness yet.';
+          : 'The backend health endpoint did not respond.';
 
   return (
     <section className="status-card" aria-live="polite">
@@ -100,7 +86,7 @@ export function BackendStatusCard() {
           aria-hidden="true"
         />
         <div>
-          <p className="status-label">Service status</p>
+          <p className="status-label">Backend health</p>
           <h2>{heading}</h2>
         </div>
       </div>
