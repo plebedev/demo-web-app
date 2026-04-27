@@ -21,7 +21,33 @@ export type DemoRun = {
   uploaded_files_json: UploadedRunFile[] | null;
   ingestion_summary_json: RunIngestionSummary | null;
   output_brief_json: Record<string, unknown> | null;
+  post_processor_results_json: Record<string, PostProcessorAuditResult> | null;
   follow_up_count: number;
+};
+
+export type RunEvent = {
+  id: number;
+  run_id: number;
+  event_type: string;
+  status: string | null;
+  agent_role: string | null;
+  tool_name: string | null;
+  tool_arguments: Record<string, unknown> | null;
+  tool_result: Record<string, unknown> | null;
+  handoff_source_role: string | null;
+  handoff_target_role: string | null;
+  post_processor_key: string | null;
+  message: string | null;
+  created_at: string;
+};
+
+export type PostProcessorAuditResult = {
+  type: string;
+  overall_assessment: string;
+  tool_usage_findings: string[];
+  handoff_findings: string[];
+  suspicious_actions: string[];
+  summary: string;
 };
 
 export type UploadedRunFile = {
@@ -120,6 +146,13 @@ export function deriveRunTitle(inputText: string): string {
 
 export function formatRunStatus(status: RunStatus): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+export function formatEventType(eventType: string): string {
+  return eventType
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 }
 
 export function summarizeStickyBoardText(

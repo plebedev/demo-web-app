@@ -125,9 +125,9 @@ export function MessyNotesHome() {
           <p className="eyebrow">Messy notes workspace</p>
           <h1>Turn raw notes into the first honest demo run.</h1>
           <p className="lede">
-            This protected area is the runnable shell for the next phase of the
-            demo: create a run, paste chaotic notes, save the draft, and submit
-            it into a visible but still-bounded workflow state.
+            Create a run, paste chaotic notes, save the draft, and submit it
+            through the bounded messy-notes workflow. Completed runs show a
+            generated brief, execution events, and a post-run audit.
           </p>
           <div className="hero-badges">
             <span>Pasted text first</span>
@@ -161,8 +161,8 @@ export function MessyNotesHome() {
           <p className="eyebrow">Run history</p>
           <h2>Start a run or reopen one.</h2>
           <p className="lede lede--compact">
-            New runs begin as drafts. Submitting one moves it to
-            <strong> submitted</strong> until the async processor exists.
+            New runs begin as drafts. Submitting one executes the configured
+            workflow and records the result, status, event log, and audit.
           </p>
         </div>
 
@@ -198,10 +198,8 @@ export function MessyNotesHome() {
               <p className="card-kicker">No runs yet</p>
               <h3>Create the first messy-notes run.</h3>
               <p className="section-detail">
-                The first real artifact in this milestone is the run record
-                itself. Once created, the editor page lets you paste notes,
-                preview them as sticky cards, and submit honestly into the
-                workflow shell.
+                Once created, the editor page lets you paste notes, preview them
+                as sticky cards, and submit them through the bounded workflow.
               </p>
             </article>
           ) : (

@@ -10,7 +10,9 @@ import { useProtectedAccess } from '@/hooks/use-protected-access';
 import {
   DemoRun,
   DemoRunListResponse,
+  RunEvent,
   deriveRunTitle,
+  formatEventType,
   formatRunStatus,
   summarizeStickyBoardText,
 } from '@/lib/demo-runs';
@@ -35,6 +37,7 @@ export function MessyNotesRunPage({
 }>) {
   const { accessToken, isChecking } = useProtectedAccess();
   const [run, setRun] = useState<DemoRun | null>(null);
+  const [events, setEvents] = useState<RunEvent[]>([]);
   const [runs, setRuns] = useState<DemoRun[]>([]);
   const [title, setTitle] = useState('');
   const [inputText, setInputText] = useState('');
@@ -43,6 +46,7 @@ export function MessyNotesRunPage({
   const [notice, setNotice] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAuditOpen, setIsAuditOpen] = useState(false);
 
   useEffect(() => {
     if (!accessToken) {
@@ -54,12 +58,16 @@ export function MessyNotesRunPage({
 
     async function loadRun() {
       try {
-        const [runResponse, listResponse] = await Promise.all([
+        const [runResponse, listResponse, eventsResponse] = await Promise.all([
           fetch(`/api/bff/runs/${runId}`, {
             cache: 'no-store',
             headers: authHeaders(token),
           }),
           fetch('/api/bff/runs', {
+            cache: 'no-store',
+            headers: authHeaders(token),
+          }),
+          fetch(`/api/bff/runs/${runId}/events`, {
             cache: 'no-store',
             headers: authHeaders(token),
           }),
@@ -75,12 +83,16 @@ export function MessyNotesRunPage({
 
         const runPayload = (await runResponse.json()) as DemoRun;
         const listPayload = (await listResponse.json()) as DemoRunListResponse;
+        const eventsPayload = eventsResponse.ok
+          ? ((await eventsResponse.json()) as RunEvent[])
+          : [];
 
         if (!active) {
           return;
         }
 
         setRun(runPayload);
+        setEvents(eventsPayload);
         setRuns(listPayload.runs);
         setTitle(runPayload.title || '');
         setInputText(runPayload.input_text || '');
@@ -229,8 +241,11 @@ export function MessyNotesRunPage({
 
       const payload = (await response.json()) as DemoRun;
       setRun(payload);
+      await refreshEvents(payload.id);
       setNotice(
-        'Run submitted. The ingestion is real; the later workflow is still intentionally bounded.',
+        payload.status === 'completed'
+          ? 'Run completed. The workflow produced a bounded brief and audit.'
+          : 'Run submitted. The workflow is processing inside configured bounds.',
       );
       setError(null);
     } catch (submitError) {
@@ -241,6 +256,20 @@ export function MessyNotesRunPage({
       );
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function refreshEvents(targetRunId: number) {
+    if (!accessToken) {
+      return;
+    }
+
+    const response = await fetch(`/api/bff/runs/${targetRunId}/events`, {
+      cache: 'no-store',
+      headers: authHeaders(accessToken),
+    });
+    if (response.ok) {
+      setEvents((await response.json()) as RunEvent[]);
     }
   }
 
@@ -269,8 +298,13 @@ export function MessyNotesRunPage({
                 }`}
                 href={`/messy-notes/${savedRun.id}`}
               >
-                <span>#{savedRun.id}</span>
+                <span className="run-sidebar-id">#{savedRun.id}</span>
                 <strong>{savedRun.title || 'Untitled run'}</strong>
+                <span
+                  className={`status-pill status-pill--compact status-pill--${savedRun.status}`}
+                >
+                  {formatRunStatus(savedRun.status)}
+                </span>
               </Link>
             ))}
           </div>
@@ -357,7 +391,7 @@ export function MessyNotesRunPage({
                   {formatByteLimit(
                     phase1DemoConfig.limits.maxTotalWorkflowTextBytes,
                   )}{' '}
-                  routed into future workflow text.
+                  routed into workflow execution.
                 </p>
                 {selectedFiles.length > 0 ? (
                   <ul className="source-list" aria-label="Selected files">
@@ -416,6 +450,112 @@ export function MessyNotesRunPage({
 
           <section className="editor-panels editor-panels--results">
             <article className="section-card">
+              <p className="card-kicker">Generated brief</p>
+              <h3>{briefTitle(run.output_brief_json)}</h3>
+              {run.status === 'processing' || run.status === 'submitted' ? (
+                <p className="section-detail">
+                  Processing is underway. The generated brief will appear here
+                  when the run completes.
+                </p>
+              ) : run.status === 'failed' ? (
+                <p className="error-text">
+                  This run failed during bounded execution. Check the execution
+                  summary below.
+                </p>
+              ) : run.output_brief_json ? (
+                <div className="brief-output">
+                  <p className="section-detail">
+                    {String(run.output_brief_json.executive_summary || '')}
+                  </p>
+                  {briefSections(run.output_brief_json).map((section) => (
+                    <div key={section.heading} className="brief-section">
+                      <strong>{section.heading}</strong>
+                      <p>{section.content}</p>
+                    </div>
+                  ))}
+                  {briefList(run.output_brief_json.open_questions).length ? (
+                    <ul className="source-list">
+                      {briefList(run.output_brief_json.open_questions).map(
+                        (question) => (
+                          <li key={question}>{question}</li>
+                        ),
+                      )}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="section-detail">
+                  No generated brief yet. Save and submit a run to execute the
+                  workflow.
+                </p>
+              )}
+            </article>
+
+            <article className="section-card">
+              <p className="card-kicker">Execution summary</p>
+              <h3>How it worked</h3>
+              {events.length ? (
+                <ul className="source-list">
+                  {events.slice(-8).map((event) => (
+                    <li key={event.id}>
+                      <strong>{formatEventType(event.event_type)}</strong>
+                      <span>
+                        {event.agent_role ||
+                          event.tool_name ||
+                          event.post_processor_key ||
+                          'run'}
+                        {event.handoff_source_role && event.handoff_target_role
+                          ? `: ${event.handoff_source_role} to ${event.handoff_target_role}`
+                          : ''}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="section-detail">
+                  Execution events will appear after the run starts.
+                </p>
+              )}
+            </article>
+          </section>
+
+          <section className="editor-panels editor-panels--results">
+            <article className="section-card">
+              <p className="card-kicker">Audit summary</p>
+              <h3>Post-processor review</h3>
+              {auditResult(run) ? (
+                <>
+                  <p className="section-detail">{auditResult(run)?.summary}</p>
+                  <p className="section-detail">
+                    Assessment:{' '}
+                    <button
+                      className="inline-link-button"
+                      onClick={() => setIsAuditOpen(true)}
+                      type="button"
+                    >
+                      {auditResult(run)?.overall_assessment}
+                    </button>
+                  </p>
+                  {auditResult(run)?.suspicious_actions.length ? (
+                    <ul className="source-list">
+                      {auditResult(run)?.suspicious_actions.map((action) => (
+                        <li key={action}>{action}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="success-text">
+                      Tool use and handoffs stayed inside the configured graph.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="section-detail">
+                  The audit post-processor runs after completion.
+                </p>
+              )}
+            </article>
+
+            <article className="section-card">
               <p className="card-kicker">Accepted input</p>
               <h3>What made it into the run</h3>
               {run.uploaded_files_json?.length ? (
@@ -468,6 +608,162 @@ export function MessyNotesRunPage({
           </section>
         </div>
       </section>
+      {isAuditOpen && auditResult(run) ? (
+        <AuditDetailsOverlay
+          events={events}
+          onClose={() => setIsAuditOpen(false)}
+          run={run}
+        />
+      ) : null}
     </ProtectedDemoShell>
   );
+}
+
+function AuditDetailsOverlay({
+  events,
+  onClose,
+  run,
+}: Readonly<{
+  events: RunEvent[];
+  onClose: () => void;
+  run: DemoRun;
+}>) {
+  const audit = auditResult(run);
+  const toolEvents = events.filter(
+    (event) =>
+      event.event_type === 'tool_called' || event.event_type === 'tool_result',
+  );
+  const handoffEvents = events.filter(
+    (event) => event.event_type === 'handoff_occurred',
+  );
+
+  return (
+    <div
+      aria-labelledby="audit-details-title"
+      aria-modal="true"
+      className="audit-overlay"
+      role="dialog"
+    >
+      <div className="audit-panel">
+        <div className="run-card-row">
+          <div>
+            <p className="card-kicker">Audit details</p>
+            <h3 id="audit-details-title">
+              Assessment: {audit?.overall_assessment}
+            </h3>
+          </div>
+          <button className="secondary-button" onClick={onClose} type="button">
+            Close
+          </button>
+        </div>
+
+        <p className="section-detail">{audit?.summary}</p>
+
+        <div className="audit-detail-grid">
+          <section>
+            <p className="card-kicker">Tool calls</p>
+            {toolEvents.length ? (
+              <ul className="event-detail-list">
+                {toolEvents.map((event) => (
+                  <li key={event.id}>
+                    <div className="run-card-row">
+                      <strong>
+                        {event.tool_name || formatEventType(event.event_type)}
+                      </strong>
+                      <span>{formatEventType(event.event_type)}</span>
+                    </div>
+                    <p>{event.agent_role || 'run'}</p>
+                    {event.tool_arguments ? (
+                      <pre>{formatJson(event.tool_arguments)}</pre>
+                    ) : null}
+                    {event.tool_result ? (
+                      <pre>{formatJson(event.tool_result)}</pre>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="section-detail">No tool events are stored yet.</p>
+            )}
+          </section>
+
+          <section>
+            <p className="card-kicker">Handoffs</p>
+            {handoffEvents.length ? (
+              <ul className="event-detail-list">
+                {handoffEvents.map((event) => (
+                  <li key={event.id}>
+                    <strong>
+                      {event.handoff_source_role} to {event.handoff_target_role}
+                    </strong>
+                    <p>{event.message || 'Configured handoff recorded.'}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="section-detail">
+                No handoff events are stored yet.
+              </p>
+            )}
+
+            <p className="card-kicker audit-subheading">
+              Post-processor findings
+            </p>
+            <ul className="event-detail-list">
+              {(audit?.tool_usage_findings || []).map((finding) => (
+                <li key={finding}>{finding}</li>
+              ))}
+              {(audit?.handoff_findings || []).map((finding) => (
+                <li key={finding}>{finding}</li>
+              ))}
+              {(audit?.suspicious_actions || []).map((finding) => (
+                <li key={finding}>{finding}</li>
+              ))}
+            </ul>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function briefTitle(output: Record<string, unknown> | null): string {
+  return output ? String(output.title || 'Generated brief') : 'Awaiting brief';
+}
+
+function briefSections(output: Record<string, unknown>) {
+  const sections = output.sections;
+  if (!Array.isArray(sections)) {
+    return [];
+  }
+  return sections
+    .map((section) => {
+      if (!section || typeof section !== 'object') {
+        return null;
+      }
+      const candidate = section as Record<string, unknown>;
+      return {
+        heading: String(candidate.heading || 'Section'),
+        content: String(candidate.content || ''),
+      };
+    })
+    .filter((section): section is { heading: string; content: string } =>
+      Boolean(section),
+    );
+}
+
+function briefList(value: unknown): string[] {
+  return Array.isArray(value) ? value.map((item) => String(item)) : [];
+}
+
+function auditResult(run: DemoRun) {
+  const results = run.post_processor_results_json;
+  if (!results) {
+    return null;
+  }
+  return results['audit-tool-usage-and-handoffs'] || null;
+}
+
+function formatJson(value: Record<string, unknown>): string {
+  return JSON.stringify(value, null, 2);
 }

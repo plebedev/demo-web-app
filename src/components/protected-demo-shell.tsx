@@ -27,7 +27,7 @@ export function ProtectedDemoShell({
           <span className="brand-mark">M</span>
           <span>
             <strong>Messy Notes Demo</strong>
-            <small>Protected M3 workspace</small>
+            <small>Protected workflow workspace</small>
           </span>
         </Link>
 

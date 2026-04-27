@@ -28,7 +28,7 @@ export function MessyNotesAbout() {
           <p className="lede lede--compact">
             This demo takes messy human notes and moves them toward a structured
             brief. It is deliberately not a general chatbot, and it does not
-            pretend unfinished workflow stages already exist.
+            pretend the heuristic brief is a formal analysis engine.
           </p>
         </div>
 
@@ -49,9 +49,9 @@ export function MessyNotesAbout() {
               {phase1DemoConfig.supportedInputs.map((item) => (
                 <li key={item}>{item}</li>
               ))}
-              <li>Follow-ups are limited after brief generation.</li>
+              <li>One generated brief is produced per submitted run.</li>
               <li>
-                This milestone does not implement the real brief generator yet.
+                Follow-up count is tracked for later guarded follow-up behavior.
               </li>
             </ul>
           </article>
@@ -69,18 +69,18 @@ export function MessyNotesAbout() {
           <article className="section-card">
             <p className="card-kicker">Workflow direction</p>
             <ul className="section-list">
-              <li>Workflow definitions now load from typed YAML config.</li>
+              <li>Workflow definitions load from typed YAML config.</li>
               <li>
                 Agent prompts are assembled from base prompts plus tool
                 instructions.
               </li>
               <li>
-                Bounded handoffs, future parallel steps, and post-run audits are
-                configured explicitly.
+                Bounded handoffs, a narrow parallel extraction branch, and
+                post-run audits are configured explicitly.
               </li>
               <li>
-                The final orchestration and audit execution engine remain honest
-                next steps.
+                Run events, tool arguments, final brief output, and audit
+                results are persisted for inspection.
               </li>
             </ul>
           </article>

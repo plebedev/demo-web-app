@@ -7,6 +7,7 @@ This repository is the invite-only frontend/BFF for the phase-1 demo. It stays i
 - Next.js app with an invite-only phase-1 shell
 - Protected `/messy-notes` workspace for run creation, editing, status viewing, and history
 - `/messy-notes/<runId>` ingestion UI for pasted text, file uploads, and honest boundary reporting
+- `/messy-notes/<runId>` result UI for completed brief output, execution summary, and audit summary
 - Health endpoint at `/api/health`
 - BFF proxy entry point at `/api/bff/*` for backend integration
 - Browser localStorage persistence for the phase-1 signed access token
@@ -94,11 +95,31 @@ Current hard limits:
 Follow-up rules:
 
 - one generated brief per run
-- at most one follow-up question after brief generation
-- the follow-up must be about the generated brief
-- after that, the user must start a new run
+- follow-up count is initialized and stored with each run
+- broad follow-up chat is not implemented yet
+- any later follow-up behavior should stay scoped to the generated brief
 
-The full brief workflow is not implemented yet. The UI documents these guardrails now, and the codebase contains TODO boundaries where the real brief-generation flow should enforce them later.
+Submitting a run executes the bounded messy-notes workflow. The current brief
+formatter is intentionally simple and heuristic; completed runs show the brief,
+recent execution events, and the post-run audit summary.
+
+## M5 runtime visibility
+
+The protected run detail page now shows the M5 backend execution result:
+
+- run status after synchronous submit/execution
+- generated structured brief output
+- recent structured run events as a compact execution summary
+- first post-processor audit summary for tool use and agent handoffs
+
+Frontend coverage for this view is part of the normal workflow:
+
+```bash
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+```
 
 ## M3 input ingestion
 
@@ -148,7 +169,7 @@ npm run build
 
 ## Runtime configuration
 
-The app is prepared for future backend integration through environment variables.
+The app connects to the backend through BFF routes configured by environment variables.
 
 | Variable | Purpose | Example |
 |---|---|---|
@@ -159,8 +180,8 @@ The app is prepared for future backend integration through environment variables
 | `BACKEND_BASE_URL` | Explicit override for `/api/bff/*` proxy routes | `http://127.0.0.1:8000/api` |
 | `BACKEND_LOCAL_URL` | Local-development backend base URL | `http://127.0.0.1:8000/api` |
 | `BACKEND_CLUSTER_URL` | Cluster-internal backend base URL | `http://backend-api.demo.svc.cluster.local/api` |
-| `NEXT_PUBLIC_MAX_FILES_PER_RUN` | UI-visible phase-1 max files per run placeholder | `3` |
-| `NEXT_PUBLIC_MAX_FILE_SIZE_BYTES` | UI-visible phase-1 max file size placeholder | `5242880` |
+| `NEXT_PUBLIC_MAX_FILES_PER_RUN` | UI-visible phase-1 max files per run | `3` |
+| `NEXT_PUBLIC_MAX_FILE_SIZE_BYTES` | UI-visible phase-1 max file size | `5242880` |
 | `NEXT_PUBLIC_MAX_EXTRACTED_TEXT_BYTES` | UI-visible extracted-text budget across accepted files | `250000` |
 | `NEXT_PUBLIC_MAX_PASTED_TEXT_BYTES` | UI-visible raw pasted-text storage limit | `200000` |
 | `NEXT_PUBLIC_MAX_TOTAL_WORKFLOW_TEXT_BYTES` | UI-visible total normalized workflow text limit | `400000` |

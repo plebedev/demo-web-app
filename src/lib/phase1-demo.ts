@@ -45,9 +45,9 @@ export const phase1DemoConfig: Phase1DemoConfig = {
   },
   followUpRules: [
     'One generated brief per run.',
-    'At most one follow-up question after the brief.',
-    'The follow-up must be about the generated brief.',
-    'After that, the user must start a new run.',
+    'Follow-up count is initialized and stored with each run.',
+    'Broad follow-up chat is not implemented yet.',
+    'Any later follow-up behavior should stay scoped to the generated brief.',
   ],
 };
 
