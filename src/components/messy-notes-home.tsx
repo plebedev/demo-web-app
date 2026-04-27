@@ -218,6 +218,7 @@ export function MessyNotesHome() {
                   </span>
                 </div>
                 <h3>{run.title || 'Untitled run'}</h3>
+                <p className="section-detail">Workflow {run.workflow_key}.</p>
                 <p className="section-detail">
                   Updated {new Date(run.updated_at).toLocaleString()}.
                 </p>

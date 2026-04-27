@@ -41,6 +41,7 @@ describe('MessyNotesHome', () => {
                 {
                   id: 7,
                   status: 'draft',
+                  workflow_key: 'messy-notes-v1',
                   title: 'Board prep',
                   created_at: '2026-04-27T00:00:00Z',
                   updated_at: '2026-04-27T00:00:00Z',
@@ -75,5 +76,6 @@ describe('MessyNotesHome', () => {
       expect(screen.getByText('Board prep')).toBeInTheDocument();
     });
     expect(screen.getByText('Draft')).toBeInTheDocument();
+    expect(screen.getByText('Workflow messy-notes-v1.')).toBeInTheDocument();
   });
 });
