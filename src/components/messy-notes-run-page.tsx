@@ -12,7 +12,9 @@ import {
   DemoRunListResponse,
   deriveRunTitle,
   formatRunStatus,
+  summarizeStickyBoardText,
 } from '@/lib/demo-runs';
+import { formatByteLimit, phase1DemoConfig } from '@/lib/phase1-demo';
 
 const sampleChaos = `Board wants a tighter renewal story
 Procurement is worried about timeline risk
@@ -23,7 +25,6 @@ Ask whether legal needs a one-page summary`;
 function authHeaders(accessToken: string): HeadersInit {
   return {
     Authorization: `Bearer ${accessToken}`,
-    'Content-Type': 'application/json',
   };
 }
 
@@ -37,6 +38,7 @@ export function MessyNotesRunPage({
   const [runs, setRuns] = useState<DemoRun[]>([]);
   const [title, setTitle] = useState('');
   const [inputText, setInputText] = useState('');
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -103,30 +105,70 @@ export function MessyNotesRunPage({
     };
   }, [accessToken, runId]);
 
+  const boardText = useMemo(
+    () => summarizeStickyBoardText(run, inputText),
+    [inputText, run],
+  );
   const noteCount = useMemo(
     () =>
-      inputText
+      boardText
         .split(/\n+/)
         .map((line) => line.trim())
         .filter(Boolean).length,
-    [inputText],
+    [boardText],
   );
 
   const canSubmit =
     run !== null && (run.status === 'draft' || run.status === 'failed');
 
-  function buildPayload() {
+  function hasUnsavedIngestionChanges() {
+    if (!run) {
+      return false;
+    }
+
+    return (
+      selectedFiles.length > 0 ||
+      title !== (run.title || '') ||
+      inputText !== (run.input_text || '')
+    );
+  }
+
+  async function persistIngestion() {
+    if (!accessToken || !run) {
+      return null;
+    }
+
+    const payload = new FormData();
     const resolvedTitle = title.trim() || deriveRunTitle(inputText);
 
-    return {
-      title: resolvedTitle === 'Untitled run' ? null : resolvedTitle,
-      input_text: inputText,
-      input_metadata_json: {
-        source_kind: 'pasted_text',
-        note_count: noteCount,
-        phase_1_uploads_planned: ['text files', 'extractable PDFs'],
-      },
-    };
+    if (resolvedTitle && resolvedTitle !== 'Untitled run') {
+      payload.set('title', resolvedTitle);
+    }
+    payload.set('input_text', inputText);
+    selectedFiles.forEach((file) => payload.append('files', file));
+
+    const response = await fetch(`/api/bff/runs/${run.id}/ingest`, {
+      method: 'POST',
+      headers: authHeaders(accessToken),
+      body: payload,
+    });
+
+    if (!response.ok) {
+      const responsePayload = (await response.json().catch(() => null)) as {
+        detail?: string;
+      } | null;
+      throw new Error(
+        responsePayload?.detail || 'Unable to process this input.',
+      );
+    }
+
+    const nextRun = (await response.json()) as DemoRun;
+    setRun(nextRun);
+    setTitle(nextRun.title || '');
+    setInputText(nextRun.input_text || '');
+    setSelectedFiles([]);
+    setError(null);
+    return nextRun;
   }
 
   async function handleSave() {
@@ -138,22 +180,12 @@ export function MessyNotesRunPage({
     setNotice(null);
 
     try {
-      const response = await fetch(`/api/bff/runs/${run.id}`, {
-        method: 'PUT',
-        headers: authHeaders(accessToken),
-        body: JSON.stringify(buildPayload()),
-      });
-
-      if (!response.ok) {
-        throw new Error('Unable to save this draft.');
+      const savedRun = await persistIngestion();
+      if (!savedRun) {
+        return;
       }
 
-      const payload = (await response.json()) as DemoRun;
-      setRun(payload);
-      setTitle(payload.title || '');
-      setInputText(payload.input_text || '');
-      setNotice('Draft saved to the backend.');
-      setError(null);
+      setNotice('Draft saved. No fake ranking, just bounded ingestion.');
     } catch (saveError) {
       setError(
         saveError instanceof Error
@@ -174,10 +206,18 @@ export function MessyNotesRunPage({
     setNotice(null);
 
     try {
-      const response = await fetch(`/api/bff/runs/${run.id}/submit`, {
+      let targetRun = run;
+      if (hasUnsavedIngestionChanges()) {
+        const savedRun = await persistIngestion();
+        if (!savedRun) {
+          return;
+        }
+        targetRun = savedRun;
+      }
+
+      const response = await fetch(`/api/bff/runs/${targetRun.id}/submit`, {
         method: 'POST',
         headers: authHeaders(accessToken),
-        body: JSON.stringify(buildPayload()),
       });
 
       if (!response.ok) {
@@ -189,10 +229,8 @@ export function MessyNotesRunPage({
 
       const payload = (await response.json()) as DemoRun;
       setRun(payload);
-      setTitle(payload.title || '');
-      setInputText(payload.input_text || '');
       setNotice(
-        'Run submitted. Async processing is not wired yet, so the status stops at submitted for now.',
+        'Run submitted. The ingestion is real; the later workflow is still intentionally bounded.',
       );
       setError(null);
     } catch (submitError) {
@@ -248,9 +286,10 @@ export function MessyNotesRunPage({
             </div>
             <h2>Messy-notes input</h2>
             <p className="section-detail">
-              This is a demo. Paste notes, save the draft, and submit the run
-              into a visible status change. File ingestion and brief generation
-              are still future steps, not hidden fake behavior.
+              Phase 1 accepts pasted text, plain text files, and PDFs with
+              extractable text. It does not do OCR, images, audio, video, or web
+              lookup, and it will trim input by simple fixed limits instead of
+              pretending to understand everything first.
             </p>
           </section>
 
@@ -285,11 +324,52 @@ export function MessyNotesRunPage({
                 className="text-area"
                 onChange={(event) => setInputText(event.target.value)}
                 placeholder={
-                  'Paste meeting notes, call scraps, or internal bullets here.\n\nPhase 1 supports pasted text now. Text files and extractable PDFs are planned inputs, but not wired into this milestone yet.'
+                  'Paste meeting notes, call scraps, or internal bullets here.\n\nThe demo keeps the raw pasted text, then trims the workflow input deterministically if it gets too large.'
                 }
                 rows={12}
                 value={inputText}
               />
+
+              <div className="file-input-block">
+                <label className="field-label" htmlFor="run-files">
+                  Attach files
+                </label>
+                <input
+                  id="run-files"
+                  accept=".txt,text/plain,.pdf,application/pdf"
+                  className="text-input"
+                  multiple
+                  onChange={(event) =>
+                    setSelectedFiles(Array.from(event.target.files || []))
+                  }
+                  type="file"
+                />
+                <p className="section-detail section-detail--compact">
+                  Supported: pasted text, `.txt`, and PDFs with selectable text.
+                  Unsupported: images, OCR-only PDFs, audio/video, web lookup.
+                </p>
+                <p className="section-detail section-detail--compact">
+                  Limits: {phase1DemoConfig.limits.maxFilesPerRun} files,{' '}
+                  {formatByteLimit(phase1DemoConfig.limits.maxFileSizeBytes)}{' '}
+                  per file,{' '}
+                  {formatByteLimit(phase1DemoConfig.limits.maxPastedTextBytes)}{' '}
+                  of pasted text stored, and{' '}
+                  {formatByteLimit(
+                    phase1DemoConfig.limits.maxTotalWorkflowTextBytes,
+                  )}{' '}
+                  routed into future workflow text.
+                </p>
+                {selectedFiles.length > 0 ? (
+                  <ul className="source-list" aria-label="Selected files">
+                    {selectedFiles.map((file) => (
+                      <li key={`${file.name}-${file.size}`}>
+                        <strong>{file.name}</strong>{' '}
+                        <span>{file.type || 'Unknown type'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
 
               <div className="editor-meta-row">
                 <span>{noteCount} notes on the board</span>
@@ -326,10 +406,64 @@ export function MessyNotesRunPage({
                   <h3>Messy dashboard preview</h3>
                 </div>
                 <p className="section-detail section-detail--compact">
-                  Statuses are real. Processing isn&apos;t yet.
+                  Pasted notes stay sticky. File details live below where they
+                  can be honest about what got kept.
                 </p>
               </div>
-              <StickyNotesBoard inputText={inputText} />
+              <StickyNotesBoard inputText={boardText} />
+            </article>
+          </section>
+
+          <section className="editor-panels editor-panels--results">
+            <article className="section-card">
+              <p className="card-kicker">Accepted input</p>
+              <h3>What made it into the run</h3>
+              {run.uploaded_files_json?.length ? (
+                <ul className="source-list">
+                  {run.uploaded_files_json.map((file) => (
+                    <li key={file.file_name}>
+                      <strong>{file.file_name}</strong>
+                      <span>
+                        {file.content_type} •{' '}
+                        {formatByteLimit(file.file_size_bytes)}
+                        {file.trimmed ? ' • kept first slice only' : ''}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="section-detail">
+                  No accepted file attachments yet. Pasted text still counts.
+                </p>
+              )}
+            </article>
+
+            <article className="section-card">
+              <p className="card-kicker">Rejected or trimmed</p>
+              <h3>Boundaries, stated plainly</h3>
+              {run.ingestion_summary_json?.rejected_files?.length ? (
+                <ul className="source-list">
+                  {run.ingestion_summary_json.rejected_files.map((file) => (
+                    <li key={`${file.file_name}-${file.reason}`}>
+                      <strong>{file.file_name}</strong>
+                      <span>{file.reason}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="section-detail">
+                  Nothing was rejected on the last save.
+                </p>
+              )}
+              {run.ingestion_summary_json?.warnings?.length ? (
+                <div className="warning-stack">
+                  {run.ingestion_summary_json.warnings.map((warning) => (
+                    <p key={warning} className="warning-text">
+                      {warning}
+                    </p>
+                  ))}
+                </div>
+              ) : null}
             </article>
           </section>
         </div>

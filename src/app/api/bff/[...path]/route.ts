@@ -32,7 +32,7 @@ async function proxyRequest(request: NextRequest, path: string[]) {
     body:
       request.method === 'GET' || request.method === 'HEAD'
         ? undefined
-        : await request.text(),
+        : new Uint8Array(await request.arrayBuffer()),
     redirect: 'manual',
   });
 

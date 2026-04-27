@@ -6,6 +6,7 @@ type Phase1DemoConfig = {
     maxFilesPerRun: number;
     maxFileSizeBytes: number;
     maxExtractedTextBytes: number;
+    maxPastedTextBytes: number;
     maxTotalWorkflowTextBytes: number;
   };
   followUpRules: string[];
@@ -36,6 +37,7 @@ export const phase1DemoConfig: Phase1DemoConfig = {
       'NEXT_PUBLIC_MAX_EXTRACTED_TEXT_BYTES',
       250000,
     ),
+    maxPastedTextBytes: readInt('NEXT_PUBLIC_MAX_PASTED_TEXT_BYTES', 200000),
     maxTotalWorkflowTextBytes: readInt(
       'NEXT_PUBLIC_MAX_TOTAL_WORKFLOW_TEXT_BYTES',
       400000,

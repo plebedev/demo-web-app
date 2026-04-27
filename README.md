@@ -6,6 +6,7 @@ This repository is the invite-only frontend/BFF for the phase-1 demo. It stays i
 
 - Next.js app with an invite-only phase-1 shell
 - Protected `/messy-notes` workspace for run creation, editing, status viewing, and history
+- `/messy-notes/<runId>` ingestion UI for pasted text, file uploads, and honest boundary reporting
 - Health endpoint at `/api/health`
 - BFF proxy entry point at `/api/bff/*` for backend integration
 - Browser localStorage persistence for the phase-1 signed access token
@@ -82,11 +83,12 @@ Not supported in phase 1:
 - audio/video
 - web lookup
 
-Current hard-limit placeholders:
+Current hard limits:
 
 - `NEXT_PUBLIC_MAX_FILES_PER_RUN`
 - `NEXT_PUBLIC_MAX_FILE_SIZE_BYTES`
 - `NEXT_PUBLIC_MAX_EXTRACTED_TEXT_BYTES`
+- `NEXT_PUBLIC_MAX_PASTED_TEXT_BYTES`
 - `NEXT_PUBLIC_MAX_TOTAL_WORKFLOW_TEXT_BYTES`
 
 Follow-up rules:
@@ -97,6 +99,22 @@ Follow-up rules:
 - after that, the user must start a new run
 
 The full brief workflow is not implemented yet. The UI documents these guardrails now, and the codebase contains TODO boundaries where the real brief-generation flow should enforce them later.
+
+## M3 input ingestion
+
+This milestone turns the M2 shell into a real phase-1 intake flow:
+
+- `/` is still the invite gate
+- successful invite redemption still routes to `/messy-notes`
+- `/messy-notes/<runId>` now accepts pasted text plus file uploads
+- accepted files, rejected files, and trimming warnings are rendered directly in the protected workspace
+- the UI stays explicit about what is unsupported and why
+
+The trimming strategy is fixed and documented to match the backend:
+
+- keep the first supported files in upload order
+- keep the first bytes that fit the configured text budgets
+- do not pretend the app deeply ranked notes that were dropped
 
 ## M2 demo shell
 
@@ -143,8 +161,9 @@ The app is prepared for future backend integration through environment variables
 | `BACKEND_CLUSTER_URL` | Cluster-internal backend base URL | `http://backend-api.demo.svc.cluster.local/api` |
 | `NEXT_PUBLIC_MAX_FILES_PER_RUN` | UI-visible phase-1 max files per run placeholder | `3` |
 | `NEXT_PUBLIC_MAX_FILE_SIZE_BYTES` | UI-visible phase-1 max file size placeholder | `5242880` |
-| `NEXT_PUBLIC_MAX_EXTRACTED_TEXT_BYTES` | UI-visible extracted-text limit placeholder | `250000` |
-| `NEXT_PUBLIC_MAX_TOTAL_WORKFLOW_TEXT_BYTES` | UI-visible total workflow text limit placeholder | `400000` |
+| `NEXT_PUBLIC_MAX_EXTRACTED_TEXT_BYTES` | UI-visible extracted-text budget across accepted files | `250000` |
+| `NEXT_PUBLIC_MAX_PASTED_TEXT_BYTES` | UI-visible raw pasted-text storage limit | `200000` |
+| `NEXT_PUBLIC_MAX_TOTAL_WORKFLOW_TEXT_BYTES` | UI-visible total normalized workflow text limit | `400000` |
 
 Resolution order is:
 
