@@ -1,6 +1,7 @@
 'use client';
 
 import React, { FormEvent, ReactNode, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 import { BackendStatusCard } from '@/components/backend-status-card';
 import {
@@ -77,15 +78,15 @@ function AccessPanel({
     return (
       <section className="access-panel">
         <p className="card-kicker">Authenticated</p>
-        <h2>Phase-1 access active</h2>
+        <h2>Redirecting into messy notes</h2>
         <p className="section-detail">
-          This browser already holds a signed backend token. Protected API calls
-          continue working until the token expires or is invalidated.
+          This browser already holds a signed backend token. The public invite
+          shell stays here at `/`, and the protected demo experience now lives
+          under the `/messy-notes` slug.
         </p>
         <p className="access-note">
-          The brief workflow remains intentionally bounded. Upload and follow-up
-          limits are documented below and should be enforced at future workflow
-          entry points.
+          If you stay on this page for more than a moment, use the browser
+          directly to open the protected workspace.
         </p>
       </section>
     );
@@ -164,6 +165,7 @@ function ShellFrame({
 }
 
 export function DemoExperience() {
+  const router = useRouter();
   const [accessState, setAccessState] = useState<AccessState>('checking');
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -203,6 +205,7 @@ export function DemoExperience() {
         });
         setAccessState('authenticated');
         setError(null);
+        router.replace('/messy-notes');
       } catch {
         if (!active) {
           return;
@@ -218,7 +221,7 @@ export function DemoExperience() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [router]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -248,6 +251,7 @@ export function DemoExperience() {
       setAccessState('authenticated');
       setError(null);
       setCode('');
+      router.replace('/messy-notes');
     } catch (submitError) {
       setError(
         submitError instanceof Error
@@ -266,18 +270,18 @@ export function DemoExperience() {
       <section className="hero" id="top">
         <div className="hero-copy">
           <p className="eyebrow">Structured workflows, not generic chat</p>
-          <h1>Practical AI tooling with visible constraints.</h1>
+          <h1>Practical AI tooling with a real protected shell.</h1>
           <p className="lede">
-            This demo is intentionally narrow: invite-only access, bounded brief
-            generation, explicit product limitations, and a deployment shape
-            that matches how the system is actually run on Oracle Cloud Always
-            Free infrastructure.
+            This demo is intentionally narrow: invite-only access, backend
+            persistence for messy-note runs, explicit product limitations, and a
+            deployment shape that matches how the system is actually run on
+            Oracle infrastructure.
           </p>
           <div className="hero-badges">
             <span>Invite-only access</span>
             <span>Signed backend tokens</span>
+            <span>Protected `/messy-notes` app</span>
             <span>Phase-1 guardrails</span>
-            <span>Oracle Always Free</span>
           </div>
         </div>
 
@@ -309,17 +313,18 @@ export function DemoExperience() {
               'FastAPI backend API on localhost:8000.',
               'Postgres via Docker Compose under local/.',
               'Browser traffic goes through BFF routes, not direct backend calls.',
+              'The public invite shell lives at `/`, while the protected demo slug lives at `/messy-notes`.',
             ]}
             title="Local development"
           />
           <FeatureSection
             description="How the demo is deployed and operated today."
             items={[
-              'Single-node k3s cluster on an Oracle Cloud Always Free VM.',
+              'Single-node k3s cluster on an Oracle Cloud VM.',
               'Public ingress exposes the web app, not the internal admin API.',
               'Backend stays behind cluster-internal service DNS.',
               'Images are built locally, tagged with git SHA, shipped as tar, imported into k3s, and deployed via Helm.',
-              'This lightweight deploy path is deliberate for a cost-constrained demo on forever-free Oracle Cloud.',
+              'This lightweight deploy path is deliberate for a cost-constrained invite-only demo.',
             ]}
             title="Production deployment"
           />
@@ -341,9 +346,9 @@ export function DemoExperience() {
           <p className="eyebrow">Architecture</p>
           <h2>Two repos, one product.</h2>
           <p className="lede lede--compact">
-            The browser-facing demo lives in the frontend/BFF. Persistence,
-            invite validation, token issuance, and internal admin behavior live
-            in the backend service.
+            The browser-facing invite gate and demo workspace live in the
+            frontend/BFF. Persistence, invite validation, token issuance, and
+            internal admin behavior live in the backend service.
           </p>
         </div>
 
@@ -354,8 +359,8 @@ export function DemoExperience() {
             <ul className="section-list">
               <li>Framework: Next.js App Router with React 19.</li>
               <li>
-                Owns browser UI, invite entry flow, and protected client-side
-                experience.
+                Owns browser UI, invite entry flow, redirect into protected demo
+                slugs, and the messy-notes workspace.
               </li>
               <li>
                 Stores the signed phase-1 token in localStorage for this
@@ -378,15 +383,14 @@ export function DemoExperience() {
               </li>
               <li>
                 Owns invitation code validation, redemption tracking, signed
-                token issuance, and protected endpoints.
+                token issuance, persisted runs, and protected endpoints.
               </li>
               <li>
                 Provides internal-only admin APIs for creating, listing,
                 deactivating, and inspecting invite codes.
               </li>
               <li>
-                Uses Postgres locally and Oracle configuration in deployed
-                environments.
+                Uses Postgres locally and Oracle as the production target.
               </li>
               <li>
                 Receives secrets through Kubernetes Secret-backed environment
@@ -426,8 +430,9 @@ export function DemoExperience() {
                 faked in the UI.
               </li>
               <li>
-                Infrastructure choices are constrained on purpose by the Oracle
-                Always Free demo footprint.
+                Planned agent/tool orchestration stays config-driven rather than
+                open-ended, but that workflow layer is not faked in this
+                milestone.
               </li>
             </ul>
           </article>
@@ -451,6 +456,8 @@ export function DemoExperience() {
             items={[
               'Invite code entry and signed token persistence.',
               'Backend invite redemption, usage counting, and redemption records.',
+              'Protected `/messy-notes` workspace and run-history shell.',
+              'Run creation, draft persistence, retrieval, and submit status transitions.',
               'Protected API access through the BFF.',
               'Internal admin invitation management endpoints and script.',
             ]}
@@ -471,6 +478,7 @@ export function DemoExperience() {
               ...phase1DemoConfig.unsupportedInputs,
               'No public admin UI.',
               'No full user accounts or password login.',
+              'No fake completed brief generation.',
               'No fake workflow claims beyond the current demo scope.',
             ]}
             title="Not implemented"
@@ -491,8 +499,8 @@ export function DemoExperience() {
             <p className="card-kicker">More features TBD</p>
             <p className="section-detail">
               The next additions should extend the actual brief workflow and its
-              enforcement logic rather than layering on decorative surfaces or
-              fake enterprise scaffolding.
+              enforcement logic from the saved run model rather than layering on
+              decorative surfaces or fake enterprise scaffolding.
             </p>
           </article>
 

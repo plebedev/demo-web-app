@@ -10,11 +10,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DemoExperience } from '@/components/demo-experience';
 import { ACCESS_TOKEN_STORAGE_KEY } from '@/lib/access-token';
+import * as accessTokenLib from '@/lib/access-token';
+
+const replaceMock = vi.fn();
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    replace: replaceMock,
+  }),
+}));
 
 describe('DemoExperience', () => {
   beforeEach(() => {
     window.localStorage.clear();
     vi.restoreAllMocks();
+    replaceMock.mockReset();
   });
 
   afterEach(() => {
@@ -30,7 +40,9 @@ describe('DemoExperience', () => {
     expect(screen.getByLabelText('Invitation code')).toBeInTheDocument();
   });
 
-  it('persists a redeemed token and transitions into the protected shell', async () => {
+  it('persists a redeemed token and redirects into the messy-notes workspace', async () => {
+    const persistSpy = vi.spyOn(accessTokenLib, 'persistAccessToken');
+
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
@@ -41,23 +53,6 @@ describe('DemoExperience', () => {
             JSON.stringify({
               access_token: 'signed-token',
               expires_at: '2026-12-31T00:00:00Z',
-            }),
-            {
-              status: 200,
-              headers: { 'Content-Type': 'application/json' },
-            },
-          );
-        }
-
-        if (url.endsWith('/api/bff/status')) {
-          return new Response(
-            JSON.stringify({
-              database_ready: true,
-              providers: {
-                twilio: { configured: false },
-                plivo: { configured: false },
-                llm: { configured: false },
-              },
             }),
             {
               status: 200,
@@ -77,12 +72,16 @@ describe('DemoExperience', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Continue to demo' }));
 
-    expect(
-      await screen.findByText('Phase-1 access active'),
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(replaceMock).toHaveBeenCalledWith('/messy-notes');
+    });
 
-    const rawToken = window.localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
-    expect(rawToken).toContain('signed-token');
+    await waitFor(() => {
+      expect(persistSpy).toHaveBeenCalledWith({
+        accessToken: 'signed-token',
+        expiresAt: '2026-12-31T00:00:00Z',
+      });
+    });
   });
 
   it('returns to invite entry when a stored token fails verification', async () => {
