@@ -22,7 +22,7 @@ function readInt(name: string, fallback: number): number {
 }
 
 export const phase1DemoConfig: Phase1DemoConfig = {
-  appTitle: process.env.NEXT_PUBLIC_APP_NAME || 'Demo Frontend BFF',
+  appTitle: process.env.NEXT_PUBLIC_APP_NAME || 'Very Serious Prototype :)',
   supportedInputs: [
     'Pasted text',
     'Text file upload',

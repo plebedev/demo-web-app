@@ -33,7 +33,7 @@ export function getRuntimeConfig(): RuntimeConfig {
     appName:
       process.env.NEXT_PUBLIC_APP_NAME ||
       process.env.APP_NAME ||
-      'Frontend BFF',
+      'Very Serious Prototype :)',
     stage: process.env.NEXT_PUBLIC_STAGE || 'unknown',
     backendBaseUrl: resolveBackendBaseUrl(),
   };

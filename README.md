@@ -1,15 +1,16 @@
 # Invite-Only Demo Frontend
 
-This repository is the invite-only frontend/BFF for the phase-1 demo. It stays intentionally small, but it now includes the browser-facing invite gate, signed-token persistence, protected app shell behavior, and explicit demo guardrails.
+This repository is the invite-only frontend/BFF for the phase-1 demo. It stays intentionally small, but it now includes the browser-facing invite gate at `/`, signed-token persistence, the protected `/messy-notes` demo workspace, and explicit demo guardrails.
 
 ## What is included
 
 - Next.js app with an invite-only phase-1 shell
+- Protected `/messy-notes` workspace for run creation, editing, status viewing, and history
 - Health endpoint at `/api/health`
 - BFF proxy entry point at `/api/bff/*` for backend integration
 - Browser localStorage persistence for the phase-1 signed access token
 - A protected frontend status card that checks backend connectivity through the BFF
-- Vitest + Testing Library tests for token-gating behavior
+- Vitest + Testing Library tests for token-gating behavior, protected workspace rendering, and sticky-note note-board rendering
 - Multi-stage production `Dockerfile`
 - Helm chart under [deploy/helm/frontend-bff](/Users/plebedev/github/demo-web-app/deploy/helm/frontend-bff)
 - Shell deploy helpers under [deploy/scripts](/Users/plebedev/github/demo-web-app/deploy/scripts)
@@ -97,6 +98,18 @@ Follow-up rules:
 
 The full brief workflow is not implemented yet. The UI documents these guardrails now, and the codebase contains TODO boundaries where the real brief-generation flow should enforce them later.
 
+## M2 demo shell
+
+This milestone adds the first runnable protected demo shell:
+
+- `/` stays the public invitation page
+- successful invitation validation redirects the browser to `/messy-notes`
+- `/messy-notes` lists saved runs and creates new draft runs
+- `/messy-notes/<runId>` lets the user paste notes, preview them as sticky-note cards, save the draft, and submit the run
+- `/messy-notes/about` explains the bounded product and practical architecture
+
+If a user lands on `/messy-notes` without a valid access token in localStorage, the app redirects back to `/`.
+
 ## Local production build test
 
 ```bash
@@ -122,8 +135,8 @@ The app is prepared for future backend integration through environment variables
 | Variable | Purpose | Example |
 |---|---|---|
 | `PORT` | Container listen port | `3000` |
-| `APP_NAME` | Server-side app label | `Frontend BFF` |
-| `NEXT_PUBLIC_APP_NAME` | Frontend app label | `Frontend BFF` |
+| `APP_NAME` | Server-side app label | `Very Serious Prototype :)` |
+| `NEXT_PUBLIC_APP_NAME` | Frontend app label | `Very Serious Prototype :)` |
 | `NEXT_PUBLIC_STAGE` | Frontend environment marker | `demo` |
 | `BACKEND_BASE_URL` | Explicit override for `/api/bff/*` proxy routes | `http://127.0.0.1:8000/api` |
 | `BACKEND_LOCAL_URL` | Local-development backend base URL | `http://127.0.0.1:8000/api` |
