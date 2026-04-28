@@ -1,6 +1,7 @@
 'use client';
 
 import React, { FormEvent, ReactNode, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import { BackendStatusCard } from '@/components/backend-status-card';
@@ -78,16 +79,18 @@ function AccessPanel({
     return (
       <section className="access-panel">
         <p className="card-kicker">Authenticated</p>
-        <h2>Redirecting into messy notes</h2>
+        <h2>Signed access is active</h2>
         <p className="section-detail">
           This browser already holds a signed backend token. The public invite
           shell stays here at `/`, and the protected demo experience now lives
           under the `/messy-notes` slug.
         </p>
-        <p className="access-note">
-          If you stay on this page for more than a moment, use the browser
-          directly to open the protected workspace.
-        </p>
+        <Link
+          className="primary-button primary-button--link"
+          href="/messy-notes"
+        >
+          Open messy notes
+        </Link>
       </section>
     );
   }
@@ -205,7 +208,6 @@ export function DemoExperience() {
         });
         setAccessState('authenticated');
         setError(null);
-        router.replace('/messy-notes');
       } catch {
         if (!active) {
           return;

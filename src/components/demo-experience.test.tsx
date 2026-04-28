@@ -124,4 +124,43 @@ describe('DemoExperience', () => {
       expect(window.localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)).toBeNull();
     });
   });
+
+  it('shows an explicit workspace link for a valid stored token', async () => {
+    window.localStorage.setItem(
+      ACCESS_TOKEN_STORAGE_KEY,
+      JSON.stringify({
+        accessToken: 'valid-token',
+        expiresAt: '2026-12-31T00:00:00Z',
+      }),
+    );
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+
+        if (url.endsWith('/api/bff/access/verify')) {
+          return new Response(
+            JSON.stringify({ expires_at: '2026-12-31T00:00:00Z' }),
+            {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
+        }
+
+        throw new Error(`Unexpected fetch URL: ${url}`);
+      }),
+    );
+
+    render(<DemoExperience />);
+
+    expect(
+      await screen.findByText('Signed access is active'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Open messy notes' }),
+    ).toHaveAttribute('href', '/messy-notes');
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
 });

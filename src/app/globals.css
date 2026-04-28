@@ -271,6 +271,12 @@ a {
   cursor: not-allowed;
 }
 
+.primary-button--link {
+  display: inline-flex;
+  margin-top: 1.2rem;
+  text-decoration: none;
+}
+
 .secondary-button,
 .ghost-button {
   width: fit-content;
