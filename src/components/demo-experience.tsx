@@ -22,6 +22,11 @@ type AccessRedeemPayload = {
 };
 
 type AccessState = 'checking' | 'invite' | 'authenticated';
+type InviteRequestForm = {
+  name: string;
+  email: string;
+  reason: string;
+};
 
 type FeatureSectionProps = {
   title: string;
@@ -51,15 +56,34 @@ function AccessPanel({
   accessState,
   code,
   error,
+  inviteRequest,
+  inviteRequestError,
+  inviteRequestNotice,
+  inviteRequestSubmitting,
+  requestFormOpen,
   submitting,
   onCodeChange,
+  onInviteRequestChange,
+  onInviteRequestSubmit,
+  onRequestFormToggle,
   onSubmit,
 }: Readonly<{
   accessState: AccessState;
   code: string;
   error: string | null;
+  inviteRequest: InviteRequestForm;
+  inviteRequestError: string | null;
+  inviteRequestNotice: string | null;
+  inviteRequestSubmitting: boolean;
+  requestFormOpen: boolean;
   submitting: boolean;
   onCodeChange: (value: string) => void;
+  onInviteRequestChange: (
+    field: keyof InviteRequestForm,
+    value: string,
+  ) => void;
+  onInviteRequestSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onRequestFormToggle: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }>) {
   if (accessState === 'checking') {
@@ -125,6 +149,79 @@ function AccessPanel({
         </button>
       </form>
       {error ? <p className="error-text">{error}</p> : null}
+      <div className="invite-request-block">
+        <p className="section-detail">
+          No code yet? Request an invite for manual review. No automatic
+          approval, no surprise sales funnel.
+        </p>
+        <button
+          className="secondary-button"
+          onClick={onRequestFormToggle}
+          type="button"
+        >
+          {requestFormOpen ? 'Hide request form' : 'Request invite'}
+        </button>
+        {requestFormOpen ? (
+          <form className="invite-form" onSubmit={onInviteRequestSubmit}>
+            <label className="field-label" htmlFor="invite-request-name">
+              Name
+            </label>
+            <input
+              id="invite-request-name"
+              autoComplete="name"
+              className="text-input"
+              onChange={(event) =>
+                onInviteRequestChange('name', event.target.value)
+              }
+              value={inviteRequest.name}
+            />
+            <label className="field-label" htmlFor="invite-request-email">
+              Email
+            </label>
+            <input
+              id="invite-request-email"
+              autoComplete="email"
+              className="text-input"
+              onChange={(event) =>
+                onInviteRequestChange('email', event.target.value)
+              }
+              type="email"
+              value={inviteRequest.email}
+            />
+            <label className="field-label" htmlFor="invite-request-reason">
+              Short reason
+            </label>
+            <textarea
+              id="invite-request-reason"
+              className="text-area text-area--request"
+              onChange={(event) =>
+                onInviteRequestChange('reason', event.target.value)
+              }
+              placeholder="A sentence or two is enough."
+              rows={4}
+              value={inviteRequest.reason}
+            />
+            <button
+              className="primary-button"
+              disabled={
+                inviteRequestSubmitting ||
+                !inviteRequest.name.trim() ||
+                !inviteRequest.email.trim() ||
+                !inviteRequest.reason.trim()
+              }
+              type="submit"
+            >
+              {inviteRequestSubmitting ? 'Sending request…' : 'Send request'}
+            </button>
+          </form>
+        ) : null}
+        {inviteRequestNotice ? (
+          <p className="success-text">{inviteRequestNotice}</p>
+        ) : null}
+        {inviteRequestError ? (
+          <p className="error-text">{inviteRequestError}</p>
+        ) : null}
+      </div>
     </section>
   );
 }
@@ -172,6 +269,19 @@ export function DemoExperience() {
   const [accessState, setAccessState] = useState<AccessState>('checking');
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [inviteRequest, setInviteRequest] = useState<InviteRequestForm>({
+    name: '',
+    email: '',
+    reason: '',
+  });
+  const [inviteRequestError, setInviteRequestError] = useState<string | null>(
+    null,
+  );
+  const [inviteRequestNotice, setInviteRequestNotice] = useState<string | null>(
+    null,
+  );
+  const [inviteRequestSubmitting, setInviteRequestSubmitting] = useState(false);
+  const [requestFormOpen, setRequestFormOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -267,6 +377,57 @@ export function DemoExperience() {
     }
   }
 
+  function handleInviteRequestChange(
+    field: keyof InviteRequestForm,
+    value: string,
+  ) {
+    setInviteRequest((current) => ({ ...current, [field]: value }));
+  }
+
+  async function handleInviteRequestSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setInviteRequestSubmitting(true);
+    setInviteRequestError(null);
+    setInviteRequestNotice(null);
+
+    try {
+      const response = await fetch('/api/bff/access/invite-requests', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(inviteRequest),
+      });
+
+      const payload = (await response.json().catch(() => null)) as {
+        detail?: string;
+        message?: string;
+      } | null;
+
+      if (!response.ok) {
+        throw new Error(
+          typeof payload?.detail === 'string'
+            ? payload.detail
+            : 'Unable to submit invite request.',
+        );
+      }
+
+      setInviteRequest({ name: '', email: '', reason: '' });
+      setInviteRequestNotice(
+        payload?.message ||
+          'Invite request received for manual review. No auto-approval magic.',
+      );
+    } catch (requestError) {
+      setInviteRequestError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Unable to submit invite request.',
+      );
+    } finally {
+      setInviteRequestSubmitting(false);
+    }
+  }
+
   return (
     <ShellFrame accessState={accessState}>
       <section className="hero" id="top">
@@ -291,7 +452,15 @@ export function DemoExperience() {
           accessState={accessState}
           code={code}
           error={error}
+          inviteRequest={inviteRequest}
+          inviteRequestError={inviteRequestError}
+          inviteRequestNotice={inviteRequestNotice}
+          inviteRequestSubmitting={inviteRequestSubmitting}
+          requestFormOpen={requestFormOpen}
           onCodeChange={setCode}
+          onInviteRequestChange={handleInviteRequestChange}
+          onInviteRequestSubmit={handleInviteRequestSubmit}
+          onRequestFormToggle={() => setRequestFormOpen((current) => !current)}
           onSubmit={handleSubmit}
           submitting={submitting}
         />

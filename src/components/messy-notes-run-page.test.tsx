@@ -1,6 +1,12 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MessyNotesRunPage } from '@/components/messy-notes-run-page';
 
@@ -21,6 +27,10 @@ vi.mock('@/hooks/use-protected-access', () => ({
 describe('MessyNotesRunPage', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it('renders accepted, rejected, and warning states from ingestion results', async () => {
@@ -84,7 +94,10 @@ describe('MessyNotesRunPage', () => {
                 workflow_text_bytes: 64,
               },
               output_brief_json: null,
+              post_processor_results_json: null,
               follow_up_count: 0,
+              follow_up_response_json: null,
+              notification_preference_json: null,
             }),
             {
               status: 200,
@@ -120,7 +133,29 @@ describe('MessyNotesRunPage', () => {
                   uploaded_files_json: [],
                   ingestion_summary_json: null,
                   output_brief_json: null,
+                  post_processor_results_json: null,
                   follow_up_count: 0,
+                  follow_up_response_json: null,
+                  notification_preference_json: null,
+                },
+              ],
+            }),
+            {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
+        }
+
+        if (url.endsWith('/api/bff/runs/samples')) {
+          return new Response(
+            JSON.stringify({
+              samples: [
+                {
+                  key: 'product-planning',
+                  title: 'Product planning mess',
+                  description: 'Roadmap fragments.',
+                  notes: ['Decision: keep it narrow.'],
                 },
               ],
             }),
@@ -207,7 +242,10 @@ describe('MessyNotesRunPage', () => {
                 workflow_text_bytes: 64,
               },
               output_brief_json: null,
+              post_processor_results_json: null,
               follow_up_count: 0,
+              follow_up_response_json: null,
+              notification_preference_json: null,
             }),
             {
               status: 200,
@@ -294,7 +332,10 @@ describe('MessyNotesRunPage', () => {
                   uploaded_files_json: [],
                   ingestion_summary_json: null,
                   output_brief_json: null,
+                  post_processor_results_json: null,
                   follow_up_count: 0,
+                  follow_up_response_json: null,
+                  notification_preference_json: null,
                 },
               ],
             }),
@@ -381,6 +422,8 @@ describe('MessyNotesRunPage', () => {
                 },
               },
               follow_up_count: 0,
+              follow_up_response_json: null,
+              notification_preference_json: null,
             }),
             {
               status: 200,
@@ -391,6 +434,25 @@ describe('MessyNotesRunPage', () => {
 
         if (url.endsWith('/api/bff/runs/7/ingest')) {
           throw new Error('Submit should not re-ingest when nothing changed.');
+        }
+
+        if (url.endsWith('/api/bff/runs/samples')) {
+          return new Response(
+            JSON.stringify({
+              samples: [
+                {
+                  key: 'product-planning',
+                  title: 'Product planning mess',
+                  description: 'Roadmap fragments.',
+                  notes: ['Decision: keep it narrow.'],
+                },
+              ],
+            }),
+            {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
         }
 
         throw new Error(`Unexpected fetch URL: ${url}`);
@@ -434,5 +496,167 @@ describe('MessyNotesRunPage', () => {
       }),
     );
     expect((submitCall?.[1] as RequestInit | undefined)?.body).toBeUndefined();
+  });
+
+  it('loads sample chaos into a draft run', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const draftRun = {
+        id: 7,
+        status: 'draft',
+        workflow_key: 'messy-notes-v1',
+        title: null,
+        created_at: '2026-04-27T00:00:00Z',
+        updated_at: '2026-04-27T00:00:00Z',
+        submitted_at: null,
+        completed_at: null,
+        failed_at: null,
+        input_text: '',
+        normalized_input_text: null,
+        input_metadata_json: null,
+        uploaded_files_json: [],
+        ingestion_summary_json: null,
+        output_brief_json: null,
+        post_processor_results_json: null,
+        follow_up_count: 0,
+        follow_up_response_json: null,
+        notification_preference_json: null,
+      };
+
+      if (url.endsWith('/api/bff/runs/7')) {
+        return Response.json(draftRun);
+      }
+      if (url.endsWith('/api/bff/runs/7/events')) {
+        return Response.json([]);
+      }
+      if (url.endsWith('/api/bff/runs')) {
+        return Response.json({ runs: [draftRun] });
+      }
+      if (url.endsWith('/api/bff/runs/samples')) {
+        return Response.json({
+          samples: [
+            {
+              key: 'product-planning',
+              title: 'Product planning mess',
+              description: 'Roadmap fragments.',
+              notes: ['Decision: keep it narrow.'],
+            },
+          ],
+        });
+      }
+      if (url.endsWith('/api/bff/runs/7/sample')) {
+        return Response.json({
+          ...draftRun,
+          title: 'Product planning mess',
+          input_text: 'Decision: keep it narrow.',
+        });
+      }
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<MessyNotesRunPage runId={7} />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Load sample chaos' }),
+    );
+
+    expect(
+      await screen.findByDisplayValue('Product planning mess'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Sample chaos loaded. It is curated, not freshly hallucinated.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('captures notification preference and shows exhausted follow-up state', async () => {
+    const completedRun = {
+      id: 7,
+      status: 'completed',
+      workflow_key: 'messy-notes-v1',
+      title: 'Board prep',
+      created_at: '2026-04-27T00:00:00Z',
+      updated_at: '2026-04-27T00:00:00Z',
+      submitted_at: '2026-04-27T01:00:00Z',
+      completed_at: '2026-04-27T01:00:02Z',
+      failed_at: null,
+      input_text: 'Decision approved',
+      normalized_input_text: 'Decision approved',
+      input_metadata_json: null,
+      uploaded_files_json: [],
+      ingestion_summary_json: null,
+      output_brief_json: {
+        title: 'Board prep',
+        executive_summary: 'This brief summarizes the notes.',
+        sections: [{ heading: 'Decisions', content: '- Decision approved' }],
+        open_questions: [],
+      },
+      post_processor_results_json: null,
+      follow_up_count: 0,
+      follow_up_response_json: null,
+      notification_preference_json: null,
+    };
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.endsWith('/api/bff/runs/7')) {
+          return Response.json(completedRun);
+        }
+        if (url.endsWith('/api/bff/runs/7/events')) {
+          return Response.json([]);
+        }
+        if (url.endsWith('/api/bff/runs')) {
+          return Response.json({ runs: [completedRun] });
+        }
+        if (url.endsWith('/api/bff/runs/samples')) {
+          return Response.json({ samples: [] });
+        }
+        if (url.endsWith('/api/bff/runs/7/notification-preference')) {
+          expect(init?.body).toContain('415');
+          return Response.json({
+            ...completedRun,
+            notification_preference_json: {
+              wants_sms: true,
+              phone_number: '+14155550134',
+            },
+          });
+        }
+        if (url.endsWith('/api/bff/runs/7/follow-up')) {
+          return Response.json({
+            ...completedRun,
+            follow_up_count: 1,
+            follow_up_response_json: {
+              question: 'Summarize only decisions?',
+              answer: '- Decision approved',
+              category: 'decisions',
+            },
+          });
+        }
+        throw new Error(`Unexpected fetch URL: ${url}`);
+      },
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<MessyNotesRunPage runId={7} />);
+
+    fireEvent.click(await screen.findByLabelText('Text me when it is done'));
+    fireEvent.change(screen.getByLabelText('US phone number'), {
+      target: { value: '(415) 555-0134' },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Save notification preference' }),
+    );
+    expect(await screen.findByText(/Preference saved/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Follow-up question'), {
+      target: { value: 'Summarize only decisions?' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Ask follow-up' }));
+
+    expect(
+      await screen.findByText('One follow-up used. Boundaries restored.'),
+    ).toBeInTheDocument();
   });
 });

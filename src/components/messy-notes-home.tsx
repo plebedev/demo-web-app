@@ -125,14 +125,16 @@ export function MessyNotesHome() {
           <p className="eyebrow">Messy notes workspace</p>
           <h1>Turn raw notes into the first honest demo run.</h1>
           <p className="lede">
-            Create a run, paste chaotic notes, save the draft, and submit it
-            through the bounded messy-notes workflow. Completed runs show a
-            generated brief, execution events, and a post-run audit.
+            Create a run, load curated sample chaos or paste your own notes, and
+            submit it through the bounded messy-notes workflow. Completed runs
+            show a generated brief, one guarded follow-up, execution events, and
+            a post-run audit.
           </p>
           <div className="hero-badges">
             <span>Pasted text first</span>
             <span>File upload ingestion</span>
             <span>Sticky-note preview</span>
+            <span>Sample chaos included</span>
             <span>Backend-persisted runs</span>
           </div>
         </div>
@@ -162,7 +164,8 @@ export function MessyNotesHome() {
           <h2>Start a run or reopen one.</h2>
           <p className="lede lede--compact">
             New runs begin as drafts. Submitting one executes the configured
-            workflow and records the result, status, event log, and audit.
+            workflow and records the result, status, event log, audit, and
+            optional notification preference.
           </p>
         </div>
 
@@ -198,8 +201,8 @@ export function MessyNotesHome() {
               <p className="card-kicker">No runs yet</p>
               <h3>Create the first messy-notes run.</h3>
               <p className="section-detail">
-                Once created, the editor page lets you paste notes, preview them
-                as sticky cards, and submit them through the bounded workflow.
+                Once created, the editor can load sample chaos instantly. No one
+                has to bring their own questionable meeting notes.
               </p>
             </article>
           ) : (

@@ -97,13 +97,31 @@ Current hard limits:
 Follow-up rules:
 
 - one generated brief per run
-- follow-up count is initialized and stored with each run
-- broad follow-up chat is not implemented yet
-- any later follow-up behavior should stay scoped to the generated brief
+- exactly one brief-scoped follow-up question per completed run
+- unrelated broad chat and second follow-ups are rejected by the backend
+- follow-up response state is stored with the run
 
 Submitting a run executes the bounded messy-notes workflow. The current brief
 formatter is intentionally simple and heuristic; completed runs show the brief,
 recent execution events, and the post-run audit summary.
+
+## M6 demo polish
+
+The protected `/messy-notes` workspace now includes curated backend-loaded
+sample chaos sets, stronger sticky-note board styling, optional SMS preference
+capture, and one guarded follow-up after a brief is complete. Notification
+sending is not performed by an agent; the UI stores preference through the
+backend for a future coded completion path.
+
+Frontend coverage for sample loading, sticky-note rendering, notification
+preference UI, and follow-up state is included in:
+
+```bash
+npm run test
+npm run lint
+npm run typecheck
+npm run build
+```
 
 ## M5 runtime visibility
 
@@ -129,6 +147,7 @@ This milestone turns the M2 shell into a real phase-1 intake flow:
 
 - `/` is still the invite gate
 - successful invite redemption still routes to `/messy-notes`
+- visitors without a code can submit a simple invite request for manual review
 - `/messy-notes/<runId>` now accepts pasted text plus file uploads
 - accepted files, rejected files, and trimming warnings are rendered directly in the protected workspace
 - the UI stays explicit about what is unsupported and why
@@ -173,20 +192,20 @@ npm run build
 
 The app connects to the backend through BFF routes configured by environment variables.
 
-| Variable | Purpose | Example |
-|---|---|---|
-| `PORT` | Container listen port | `3000` |
-| `APP_NAME` | Server-side app label | `Very Serious Prototype :)` |
-| `NEXT_PUBLIC_APP_NAME` | Frontend app label | `Very Serious Prototype :)` |
-| `NEXT_PUBLIC_STAGE` | Frontend environment marker | `demo` |
-| `BACKEND_BASE_URL` | Explicit override for `/api/bff/*` proxy routes | `http://127.0.0.1:8000/api` |
-| `BACKEND_LOCAL_URL` | Local-development backend base URL | `http://127.0.0.1:8000/api` |
-| `BACKEND_CLUSTER_URL` | Cluster-internal backend base URL | `http://backend-api.demo.svc.cluster.local/api` |
-| `NEXT_PUBLIC_MAX_FILES_PER_RUN` | UI-visible phase-1 max files per run | `3` |
-| `NEXT_PUBLIC_MAX_FILE_SIZE_BYTES` | UI-visible phase-1 max file size | `5242880` |
-| `NEXT_PUBLIC_MAX_EXTRACTED_TEXT_BYTES` | UI-visible extracted-text budget across accepted files | `250000` |
-| `NEXT_PUBLIC_MAX_PASTED_TEXT_BYTES` | UI-visible raw pasted-text storage limit | `200000` |
-| `NEXT_PUBLIC_MAX_TOTAL_WORKFLOW_TEXT_BYTES` | UI-visible total normalized workflow text limit | `400000` |
+| Variable                                    | Purpose                                                | Example                                         |
+| ------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------- |
+| `PORT`                                      | Container listen port                                  | `3000`                                          |
+| `APP_NAME`                                  | Server-side app label                                  | `Very Serious Prototype :)`                     |
+| `NEXT_PUBLIC_APP_NAME`                      | Frontend app label                                     | `Very Serious Prototype :)`                     |
+| `NEXT_PUBLIC_STAGE`                         | Frontend environment marker                            | `demo`                                          |
+| `BACKEND_BASE_URL`                          | Explicit override for `/api/bff/*` proxy routes        | `http://127.0.0.1:8000/api`                     |
+| `BACKEND_LOCAL_URL`                         | Local-development backend base URL                     | `http://127.0.0.1:8000/api`                     |
+| `BACKEND_CLUSTER_URL`                       | Cluster-internal backend base URL                      | `http://backend-api.demo.svc.cluster.local/api` |
+| `NEXT_PUBLIC_MAX_FILES_PER_RUN`             | UI-visible phase-1 max files per run                   | `3`                                             |
+| `NEXT_PUBLIC_MAX_FILE_SIZE_BYTES`           | UI-visible phase-1 max file size                       | `5242880`                                       |
+| `NEXT_PUBLIC_MAX_EXTRACTED_TEXT_BYTES`      | UI-visible extracted-text budget across accepted files | `250000`                                        |
+| `NEXT_PUBLIC_MAX_PASTED_TEXT_BYTES`         | UI-visible raw pasted-text storage limit               | `200000`                                        |
+| `NEXT_PUBLIC_MAX_TOTAL_WORKFLOW_TEXT_BYTES` | UI-visible total normalized workflow text limit        | `400000`                                        |
 
 Resolution order is:
 

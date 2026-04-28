@@ -23,6 +23,30 @@ export type DemoRun = {
   output_brief_json: Record<string, unknown> | null;
   post_processor_results_json: Record<string, PostProcessorAuditResult> | null;
   follow_up_count: number;
+  follow_up_response_json: FollowUpResponse | null;
+  notification_preference_json: NotificationPreference | null;
+};
+
+export type FollowUpResponse = {
+  question: string;
+  answer: string;
+  category: string;
+};
+
+export type NotificationPreference = {
+  wants_sms: boolean;
+  phone_number: string | null;
+};
+
+export type SampleChaosSet = {
+  key: string;
+  title: string;
+  description: string;
+  notes: string[];
+};
+
+export type SampleChaosListResponse = {
+  samples: SampleChaosSet[];
 };
 
 export type RunEvent = {
@@ -109,6 +133,8 @@ const noteAccents = [
   'sticky-note--mint',
   'sticky-note--blush',
   'sticky-note--sky',
+  'sticky-note--paper',
+  'sticky-note--lavender',
 ];
 
 const noteRotations = [
@@ -116,6 +142,8 @@ const noteRotations = [
   'sticky-note--tilt-right',
   'sticky-note--tilt-soft',
   'sticky-note--tilt-flat',
+  'sticky-note--tilt-sharp-left',
+  'sticky-note--tilt-sharp-right',
 ];
 
 export function buildStickyNotes(inputText: string): StickyNote[] {
