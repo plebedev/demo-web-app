@@ -28,8 +28,16 @@ body {
   color: var(--text);
   font-family: 'DM Sans', 'Avenir Next', 'Segoe UI', sans-serif;
   background:
-    radial-gradient(circle at top left, rgba(29, 79, 128, 0.12), transparent 28%),
-    radial-gradient(circle at top right, rgba(219, 175, 116, 0.15), transparent 20%),
+    radial-gradient(
+      circle at top left,
+      rgba(29, 79, 128, 0.12),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at top right,
+      rgba(219, 175, 116, 0.15),
+      transparent 20%
+    ),
     linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
 }
 
@@ -89,7 +97,11 @@ a {
   color: white;
   font-family: 'Libre Baskerville', Georgia, serif;
   font-size: 1rem;
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--accent) 0%,
+    var(--accent-strong) 100%
+  );
 }
 
 .topnav {
@@ -246,7 +258,11 @@ a {
   color: white;
   font: inherit;
   font-weight: 600;
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--accent) 0%,
+    var(--accent-strong) 100%
+  );
   cursor: pointer;
 }
 
@@ -284,6 +300,17 @@ a {
   border: 0;
   color: var(--accent);
   background: transparent;
+}
+
+.inline-link-button {
+  padding: 0;
+  border: 0;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  background: transparent;
+  cursor: pointer;
 }
 
 .error-text {
@@ -450,11 +477,18 @@ a {
 .status-pill {
   display: inline-flex;
   align-items: center;
+  width: fit-content;
   padding: 0.35rem 0.7rem;
   border-radius: 999px;
   font-size: 0.8rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.status-pill--compact {
+  padding: 0.22rem 0.48rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
 }
 
 .status-pill--draft {
@@ -485,6 +519,7 @@ a {
 .editor-grid {
   display: grid;
   grid-template-columns: minmax(15rem, 18rem) minmax(0, 1fr);
+  align-items: start;
   gap: 1rem;
 }
 
@@ -496,19 +531,54 @@ a {
   gap: 1rem;
 }
 
+.editor-sidebar {
+  position: sticky;
+  top: 7rem;
+  align-content: start;
+  gap: 0.75rem;
+  max-height: calc(100vh - 8rem);
+  overflow: hidden;
+}
+
+.run-sidebar-list {
+  align-content: start;
+  gap: 0.55rem;
+  max-height: calc(100vh - 12rem);
+  overflow: auto;
+  padding-right: 0.15rem;
+}
+
 .run-sidebar-link {
   display: grid;
-  gap: 0.15rem;
-  padding: 0.95rem 1rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.28rem 0.55rem;
+  min-height: 4.25rem;
+  padding: 0.72rem 0.78rem;
   border: 1px solid rgba(29, 79, 128, 0.12);
-  border-radius: 18px;
+  border-radius: 14px;
   text-decoration: none;
   background: rgba(255, 255, 255, 0.68);
 }
 
-.run-sidebar-link span {
+.run-sidebar-id {
+  grid-column: 1;
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.run-sidebar-link strong {
+  grid-column: 1 / -1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.92rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-sidebar-link .status-pill {
+  grid-column: 2;
+  grid-row: 1;
 }
 
 .run-sidebar-link-active {
@@ -576,6 +646,82 @@ a {
   line-height: 1.5;
 }
 
+.audit-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(36, 29, 25, 0.42);
+  backdrop-filter: blur(8px);
+}
+
+.audit-panel {
+  width: min(62rem, 100%);
+  max-height: min(46rem, calc(100vh - 2rem));
+  overflow: auto;
+  padding: 1.4rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 24px;
+  background: var(--panel-strong);
+  box-shadow: var(--shadow);
+}
+
+.audit-panel h3 {
+  margin: 0.55rem 0 0;
+  font-family: 'Libre Baskerville', Georgia, serif;
+  font-size: 1.75rem;
+  line-height: 1.18;
+}
+
+.audit-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.audit-subheading {
+  margin-top: 1rem;
+}
+
+.event-detail-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.event-detail-list li {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(29, 79, 128, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.event-detail-list p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.event-detail-list pre {
+  max-height: 13rem;
+  margin: 0;
+  overflow: auto;
+  padding: 0.75rem;
+  border-radius: 12px;
+  color: var(--accent-strong);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  background: rgba(29, 79, 128, 0.07);
+}
+
 .warning-text {
   margin: 0;
   padding: 0.85rem 0.95rem;
@@ -603,8 +749,11 @@ a {
   min-height: 26rem;
   padding: 1.5rem;
   border-radius: 24px;
-  background:
-    linear-gradient(180deg, rgba(255, 248, 223, 0.9) 0%, rgba(245, 234, 203, 0.92) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 248, 223, 0.9) 0%,
+    rgba(245, 234, 203, 0.92) 100%
+  );
   overflow: hidden;
 }
 
@@ -699,6 +848,7 @@ a {
   .run-grid,
   .editor-grid,
   .editor-panels,
+  .audit-detail-grid,
   .note-board {
     grid-template-columns: 1fr;
   }
@@ -714,6 +864,15 @@ a {
   .section-detail--compact {
     max-width: none;
     text-align: left;
+  }
+
+  .editor-sidebar {
+    position: static;
+    max-height: none;
+  }
+
+  .run-sidebar-list {
+    max-height: none;
   }
 }
 

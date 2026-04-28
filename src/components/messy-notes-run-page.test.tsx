@@ -93,6 +93,13 @@ describe('MessyNotesRunPage', () => {
           );
         }
 
+        if (url.endsWith('/api/bff/runs/7/events')) {
+          return new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
         if (url.endsWith('/api/bff/runs')) {
           return new Response(
             JSON.stringify({
@@ -209,6 +216,64 @@ describe('MessyNotesRunPage', () => {
           );
         }
 
+        if (url.endsWith('/api/bff/runs/7/events')) {
+          return new Response(
+            JSON.stringify([
+              {
+                id: 1,
+                run_id: 7,
+                event_type: 'tool_called',
+                status: 'processing',
+                agent_role: 'extractor',
+                tool_name: 'extract_action_items',
+                tool_arguments: {
+                  sections: [{ section_id: 's1', text: 'Need legal summary' }],
+                },
+                tool_result: null,
+                handoff_source_role: null,
+                handoff_target_role: null,
+                post_processor_key: null,
+                message: null,
+                created_at: '2026-04-27T01:00:00Z',
+              },
+              {
+                id: 2,
+                run_id: 7,
+                event_type: 'handoff_occurred',
+                status: 'processing',
+                agent_role: null,
+                tool_name: null,
+                tool_arguments: null,
+                tool_result: null,
+                handoff_source_role: 'extractor',
+                handoff_target_role: 'reconciler',
+                post_processor_key: null,
+                message: 'extractor handed off to reconciler.',
+                created_at: '2026-04-27T01:00:01Z',
+              },
+              {
+                id: 3,
+                run_id: 7,
+                event_type: 'run_completed',
+                status: 'completed',
+                agent_role: null,
+                tool_name: null,
+                tool_arguments: null,
+                tool_result: null,
+                handoff_source_role: null,
+                handoff_target_role: null,
+                post_processor_key: null,
+                message: 'Workflow completed.',
+                created_at: '2026-04-27T01:00:00Z',
+              },
+            ]),
+            {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
+        }
+
         if (url.endsWith('/api/bff/runs')) {
           return new Response(
             JSON.stringify({
@@ -245,7 +310,7 @@ describe('MessyNotesRunPage', () => {
           return new Response(
             JSON.stringify({
               id: 7,
-              status: 'submitted',
+              status: 'completed',
               workflow_key: 'messy-notes-v1',
               title: 'Board prep',
               created_at: '2026-04-27T00:00:00Z',
@@ -293,7 +358,28 @@ describe('MessyNotesRunPage', () => {
                 },
                 workflow_text_bytes: 64,
               },
-              output_brief_json: null,
+              output_brief_json: {
+                title: 'Board prep',
+                executive_summary: 'This brief summarizes the notes.',
+                sections: [
+                  {
+                    heading: 'Action items',
+                    content: '- Ask legal for a one-page summary',
+                  },
+                ],
+                open_questions: [],
+              },
+              post_processor_results_json: {
+                'audit-tool-usage-and-handoffs': {
+                  type: 'audit_tool_usage_and_handoffs',
+                  overall_assessment: 'ok',
+                  tool_usage_findings: [],
+                  handoff_findings: [],
+                  suspicious_actions: [],
+                  summary:
+                    'Tool use and handoffs stayed inside the configured workflow.',
+                },
+              },
               follow_up_count: 0,
             }),
             {
@@ -321,10 +407,23 @@ describe('MessyNotesRunPage', () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          'Run submitted. The ingestion is real; the later workflow is still intentionally bounded.',
+          'Run completed. The workflow produced a bounded brief and audit.',
         ),
       ).toBeInTheDocument();
     });
+    expect(
+      screen.getByText('This brief summarizes the notes.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Tool use and handoffs stayed inside the configured workflow.',
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'ok' }));
+    expect(screen.getByText('Audit details')).toBeInTheDocument();
+    expect(screen.getByText('extract_action_items')).toBeInTheDocument();
+    expect(screen.getByText(/Need legal summary/)).toBeInTheDocument();
+    expect(screen.getByText('extractor to reconciler')).toBeInTheDocument();
     const submitCall = fetchMock.mock.calls.find(
       ([url]) => url === '/api/bff/runs/7/submit',
     );
