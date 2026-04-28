@@ -16,5 +16,9 @@ describe('StickyNotesBoard', () => {
     expect(screen.getByText('Second note')).toBeInTheDocument();
     expect(screen.getByText('Third note')).toBeInTheDocument();
     expect(screen.getByLabelText('Sticky notes board')).toBeInTheDocument();
+    expect(screen.getByText('First note').closest('article')).toHaveClass(
+      'sticky-note--butter',
+      'sticky-note--tilt-left',
+    );
   });
 });

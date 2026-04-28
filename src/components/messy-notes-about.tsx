@@ -28,7 +28,7 @@ export function MessyNotesAbout() {
           <p className="lede lede--compact">
             This demo takes messy human notes and moves them toward a structured
             brief. It is deliberately not a general chatbot, and it does not
-            pretend the heuristic brief is a formal analysis engine.
+            pretend unsupported input types are secretly supported.
           </p>
         </div>
 
@@ -37,8 +37,8 @@ export function MessyNotesAbout() {
             <p className="card-kicker">What it is</p>
             <ul className="section-list">
               <li>Invite-only access with backend-issued signed tokens.</li>
-              <li>A practical demo for turning messy notes into a brief.</li>
-              <li>Bounded follow-up behavior rather than open-ended chat.</li>
+              <li>Messy notes become a structured brief with visible state.</li>
+              <li>One guarded follow-up after a completed brief, then stop.</li>
               <li>Honest phase-1 limits and visible workflow states.</li>
             </ul>
           </article>
@@ -50,9 +50,7 @@ export function MessyNotesAbout() {
                 <li key={item}>{item}</li>
               ))}
               <li>One generated brief is produced per submitted run.</li>
-              <li>
-                Follow-up count is tracked for later guarded follow-up behavior.
-              </li>
+              <li>Optional SMS preference is captured, not agent-sent.</li>
             </ul>
           </article>
 
@@ -62,7 +60,7 @@ export function MessyNotesAbout() {
               <li>Frontend/BFF: Next.js App Router.</li>
               <li>Backend API: FastAPI with protected run endpoints.</li>
               <li>Database: Oracle in production, Postgres locally.</li>
-              <li>Deployment: k3s, Helm, Oracle Cloud VM.</li>
+              <li>Deployment: single-node k3s, Helm, Oracle Cloud VM.</li>
             </ul>
           </article>
 
@@ -82,6 +80,29 @@ export function MessyNotesAbout() {
                 Run events, tool arguments, final brief output, and audit
                 results are persisted for inspection.
               </li>
+            </ul>
+          </article>
+
+          <article className="section-card">
+            <p className="card-kicker">Guardrails</p>
+            <ul className="section-list">
+              <li>No OCR, images, audio/video, or web lookup in phase 1.</li>
+              <li>Samples are curated canned inputs, not live generation.</li>
+              <li>Follow-up accepts brief-scoped clarification only.</li>
+              <li>Rejected files and trimming warnings are shown plainly.</li>
+            </ul>
+          </article>
+
+          <article className="section-card">
+            <p className="card-kicker">Why the audit exists</p>
+            <ul className="section-list">
+              <li>
+                Run events record tool calls, handoffs, and lifecycle state.
+              </li>
+              <li>
+                The post-processor checks whether execution stayed in bounds.
+              </li>
+              <li>It is review visibility, not a second hidden workflow.</li>
             </ul>
           </article>
         </div>

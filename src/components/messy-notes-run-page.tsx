@@ -11,18 +11,14 @@ import {
   DemoRun,
   DemoRunListResponse,
   RunEvent,
+  SampleChaosListResponse,
+  SampleChaosSet,
   deriveRunTitle,
   formatEventType,
   formatRunStatus,
   summarizeStickyBoardText,
 } from '@/lib/demo-runs';
 import { formatByteLimit, phase1DemoConfig } from '@/lib/phase1-demo';
-
-const sampleChaos = `Board wants a tighter renewal story
-Procurement is worried about timeline risk
-Need Oracle-safe deployment talking points
-Budget pressure is real but scope can stay narrow
-Ask whether legal needs a one-page summary`;
 
 function authHeaders(accessToken: string): HeadersInit {
   return {
@@ -39,13 +35,21 @@ export function MessyNotesRunPage({
   const [run, setRun] = useState<DemoRun | null>(null);
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [runs, setRuns] = useState<DemoRun[]>([]);
+  const [samples, setSamples] = useState<SampleChaosSet[]>([]);
+  const [selectedSampleKey, setSelectedSampleKey] = useState('');
   const [title, setTitle] = useState('');
   const [inputText, setInputText] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [wantsSms, setWantsSms] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [followUpQuestion, setFollowUpQuestion] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingSample, setIsLoadingSample] = useState(false);
+  const [isSavingPreference, setIsSavingPreference] = useState(false);
+  const [isAskingFollowUp, setIsAskingFollowUp] = useState(false);
   const [isAuditOpen, setIsAuditOpen] = useState(false);
 
   useEffect(() => {
@@ -58,20 +62,25 @@ export function MessyNotesRunPage({
 
     async function loadRun() {
       try {
-        const [runResponse, listResponse, eventsResponse] = await Promise.all([
-          fetch(`/api/bff/runs/${runId}`, {
-            cache: 'no-store',
-            headers: authHeaders(token),
-          }),
-          fetch('/api/bff/runs', {
-            cache: 'no-store',
-            headers: authHeaders(token),
-          }),
-          fetch(`/api/bff/runs/${runId}/events`, {
-            cache: 'no-store',
-            headers: authHeaders(token),
-          }),
-        ]);
+        const [runResponse, listResponse, eventsResponse, samplesResponse] =
+          await Promise.all([
+            fetch(`/api/bff/runs/${runId}`, {
+              cache: 'no-store',
+              headers: authHeaders(token),
+            }),
+            fetch('/api/bff/runs', {
+              cache: 'no-store',
+              headers: authHeaders(token),
+            }),
+            fetch(`/api/bff/runs/${runId}/events`, {
+              cache: 'no-store',
+              headers: authHeaders(token),
+            }),
+            fetch('/api/bff/runs/samples', {
+              cache: 'no-store',
+              headers: authHeaders(token),
+            }),
+          ]);
 
         if (!runResponse.ok) {
           throw new Error('Unable to load this run.');
@@ -86,6 +95,9 @@ export function MessyNotesRunPage({
         const eventsPayload = eventsResponse.ok
           ? ((await eventsResponse.json()) as RunEvent[])
           : [];
+        const samplesPayload = samplesResponse.ok
+          ? ((await samplesResponse.json()) as SampleChaosListResponse)
+          : { samples: [] };
 
         if (!active) {
           return;
@@ -94,8 +106,16 @@ export function MessyNotesRunPage({
         setRun(runPayload);
         setEvents(eventsPayload);
         setRuns(listPayload.runs);
+        setSamples(samplesPayload.samples);
+        setSelectedSampleKey(samplesPayload.samples[0]?.key || '');
         setTitle(runPayload.title || '');
         setInputText(runPayload.input_text || '');
+        setWantsSms(
+          runPayload.notification_preference_json?.wants_sms || false,
+        );
+        setPhoneNumber(
+          runPayload.notification_preference_json?.phone_number || '',
+        );
         setError(null);
       } catch (loadError) {
         if (!active) {
@@ -132,6 +152,10 @@ export function MessyNotesRunPage({
 
   const canSubmit =
     run !== null && (run.status === 'draft' || run.status === 'failed');
+  const canFollowUp =
+    run?.status === 'completed' &&
+    Boolean(run.output_brief_json) &&
+    run.follow_up_count < 1;
 
   function hasUnsavedIngestionChanges() {
     if (!run) {
@@ -206,6 +230,146 @@ export function MessyNotesRunPage({
       );
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleLoadSample() {
+    if (!accessToken || !run || !selectedSampleKey) {
+      return;
+    }
+
+    setIsLoadingSample(true);
+    setNotice(null);
+
+    try {
+      const response = await fetch(`/api/bff/runs/${run.id}/sample`, {
+        method: 'POST',
+        headers: {
+          ...authHeaders(accessToken),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ sample_key: selectedSampleKey }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as {
+          detail?: string;
+        } | null;
+        throw new Error(payload?.detail || 'Unable to load sample chaos.');
+      }
+
+      const nextRun = (await response.json()) as DemoRun;
+      setRun(nextRun);
+      setTitle(nextRun.title || '');
+      setInputText(nextRun.input_text || '');
+      setSelectedFiles([]);
+      setNotice(
+        'Sample chaos loaded. It is curated, not freshly hallucinated.',
+      );
+      setError(null);
+    } catch (sampleError) {
+      setError(
+        sampleError instanceof Error
+          ? sampleError.message
+          : 'Unable to load sample chaos.',
+      );
+    } finally {
+      setIsLoadingSample(false);
+    }
+  }
+
+  async function handleSaveNotificationPreference() {
+    if (!accessToken || !run) {
+      return;
+    }
+
+    setIsSavingPreference(true);
+    setNotice(null);
+
+    try {
+      const response = await fetch(
+        `/api/bff/runs/${run.id}/notification-preference`,
+        {
+          method: 'POST',
+          headers: {
+            ...authHeaders(accessToken),
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            wants_sms: wantsSms,
+            phone_number: wantsSms ? phoneNumber : null,
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as {
+          detail?: string;
+        } | null;
+        throw new Error(
+          payload?.detail || 'Unable to save notification preference.',
+        );
+      }
+
+      const nextRun = (await response.json()) as DemoRun;
+      setRun(nextRun);
+      setWantsSms(nextRun.notification_preference_json?.wants_sms || false);
+      setPhoneNumber(nextRun.notification_preference_json?.phone_number || '');
+      setNotice(
+        nextRun.notification_preference_json?.wants_sms
+          ? 'Preference saved. SMS sending is a coded path, not an agent trick.'
+          : 'Preference saved. No text will be attempted for this run.',
+      );
+      setError(null);
+    } catch (preferenceError) {
+      setError(
+        preferenceError instanceof Error
+          ? preferenceError.message
+          : 'Unable to save notification preference.',
+      );
+    } finally {
+      setIsSavingPreference(false);
+    }
+  }
+
+  async function handleAskFollowUp() {
+    if (!accessToken || !run) {
+      return;
+    }
+
+    setIsAskingFollowUp(true);
+    setNotice(null);
+
+    try {
+      const response = await fetch(`/api/bff/runs/${run.id}/follow-up`, {
+        method: 'POST',
+        headers: {
+          ...authHeaders(accessToken),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ question: followUpQuestion }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as {
+          detail?: string;
+        } | null;
+        throw new Error(payload?.detail || 'Unable to answer follow-up.');
+      }
+
+      const nextRun = (await response.json()) as DemoRun;
+      setRun(nextRun);
+      setFollowUpQuestion('');
+      setNotice('Follow-up answered. Boundaries have re-entered the chat.');
+      setError(null);
+    } catch (followUpError) {
+      setError(
+        followUpError instanceof Error
+          ? followUpError.message
+          : 'Unable to answer follow-up.',
+      );
+    } finally {
+      setIsAskingFollowUp(false);
     }
   }
 
@@ -325,6 +489,12 @@ export function MessyNotesRunPage({
               lookup, and it will trim input by simple fixed limits instead of
               pretending to understand everything first.
             </p>
+            {run.status === 'failed' ? (
+              <p className="error-text">
+                This run failed. You can adjust the notes and submit again; the
+                old drama does not get a vote.
+              </p>
+            ) : null}
           </section>
 
           <section className="editor-panels">
@@ -340,17 +510,46 @@ export function MessyNotesRunPage({
                 value={title}
               />
 
+              <div className="sample-chaos-row">
+                <div>
+                  <label className="field-label" htmlFor="sample-chaos">
+                    Sample chaos
+                  </label>
+                  <select
+                    id="sample-chaos"
+                    className="text-input"
+                    disabled={!canSubmit || samples.length === 0}
+                    onChange={(event) =>
+                      setSelectedSampleKey(event.target.value)
+                    }
+                    value={selectedSampleKey}
+                  >
+                    {samples.map((sample) => (
+                      <option key={sample.key} value={sample.key}>
+                        {sample.title}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="section-detail section-detail--compact-left">
+                    {samples.find((sample) => sample.key === selectedSampleKey)
+                      ?.description ||
+                      'Curated examples are loaded from the backend.'}
+                  </p>
+                </div>
+                <button
+                  className="ghost-button"
+                  disabled={!canSubmit || isLoadingSample}
+                  onClick={handleLoadSample}
+                  type="button"
+                >
+                  {isLoadingSample ? 'Loading…' : 'Load sample chaos'}
+                </button>
+              </div>
+
               <div className="editor-label-row">
                 <label className="field-label" htmlFor="run-input-text">
                   Pasted notes
                 </label>
-                <button
-                  className="ghost-button"
-                  onClick={() => setInputText(sampleChaos)}
-                  type="button"
-                >
-                  Load sample chaos
-                </button>
               </div>
 
               <textarea
@@ -410,6 +609,41 @@ export function MessyNotesRunPage({
                 <span>Follow-up count: {run.follow_up_count}</span>
               </div>
 
+              <div className="notification-box">
+                <label className="checkbox-row" htmlFor="notify-sms">
+                  <input
+                    checked={wantsSms}
+                    id="notify-sms"
+                    onChange={(event) => setWantsSms(event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>Text me when it is done</span>
+                </label>
+                {wantsSms ? (
+                  <input
+                    aria-label="US phone number"
+                    className="text-input"
+                    onChange={(event) => setPhoneNumber(event.target.value)}
+                    placeholder="US phone number"
+                    value={phoneNumber}
+                  />
+                ) : null}
+                <button
+                  className="ghost-button"
+                  disabled={isSavingPreference}
+                  onClick={handleSaveNotificationPreference}
+                  type="button"
+                >
+                  {isSavingPreference
+                    ? 'Saving…'
+                    : 'Save notification preference'}
+                </button>
+                <p className="section-detail section-detail--compact-left">
+                  This captures preference only. Actual SMS is a coded
+                  completion path, not a workflow tool pretending to be a phone.
+                </p>
+              </div>
+
               <div className="workspace-toolbar">
                 <button
                   className="primary-button"
@@ -454,8 +688,8 @@ export function MessyNotesRunPage({
               <h3>{briefTitle(run.output_brief_json)}</h3>
               {run.status === 'processing' || run.status === 'submitted' ? (
                 <p className="section-detail">
-                  Processing is underway. The generated brief will appear here
-                  when the run completes.
+                  Processing is underway. The workflow is sorting the pile
+                  without claiming it found buried treasure.
                 </p>
               ) : run.status === 'failed' ? (
                 <p className="error-text">
@@ -482,11 +716,53 @@ export function MessyNotesRunPage({
                       )}
                     </ul>
                   ) : null}
+                  <div className="follow-up-box">
+                    <p className="card-kicker">Guarded follow-up</p>
+                    {canFollowUp ? (
+                      <>
+                        <p className="section-detail">
+                          You get one follow-up question. Use it wisely.
+                        </p>
+                        <textarea
+                          aria-label="Follow-up question"
+                          className="text-area text-area--compact"
+                          onChange={(event) =>
+                            setFollowUpQuestion(event.target.value)
+                          }
+                          placeholder="Try: summarize only risks, clarify a contradiction, or explain one point from the brief."
+                          rows={3}
+                          value={followUpQuestion}
+                        />
+                        <button
+                          className="secondary-button"
+                          disabled={
+                            isAskingFollowUp ||
+                            followUpQuestion.trim().length < 3
+                          }
+                          onClick={handleAskFollowUp}
+                          type="button"
+                        >
+                          {isAskingFollowUp ? 'Answering…' : 'Ask follow-up'}
+                        </button>
+                      </>
+                    ) : run.follow_up_response_json ? (
+                      <div className="follow-up-answer">
+                        <strong>{run.follow_up_response_json.question}</strong>
+                        <p>{run.follow_up_response_json.answer}</p>
+                        <span>One follow-up used. Boundaries restored.</span>
+                      </div>
+                    ) : (
+                      <p className="section-detail">
+                        Follow-up appears after completion. One question only;
+                        this demo has hobbies outside of chat.
+                      </p>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <p className="section-detail">
-                  No generated brief yet. Save and submit a run to execute the
-                  workflow.
+                  No generated brief yet. Load sample chaos or paste your own
+                  notes, then submit the run.
                 </p>
               )}
             </article>
