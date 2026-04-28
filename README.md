@@ -2,6 +2,8 @@
 
 This repository is the invite-only frontend/BFF for the phase-1 demo. It stays intentionally small, but it now includes the browser-facing invite gate at `/`, signed-token persistence, the protected `/messy-notes` demo workspace, and explicit demo guardrails.
 
+The live demo is deployed at [demo.lebedev.ai](https://demo.lebedev.ai).
+
 ## What is included
 
 - Next.js app with an invite-only phase-1 shell
@@ -218,6 +220,8 @@ On a standard `k3s` install with Traefik, the Ingress is hostless and routes `/`
 curl http://<VM_PUBLIC_IP>/
 curl http://<VM_PUBLIC_IP>/api/health
 ```
+
+The public demo hostname is [demo.lebedev.ai](https://demo.lebedev.ai).
 
 ## Roll back
 

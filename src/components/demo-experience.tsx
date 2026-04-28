@@ -356,6 +356,12 @@ export function DemoExperience() {
           <article className="section-card section-card--tall">
             <p className="card-kicker">Frontend / BFF</p>
             <h3>demo-web-app</h3>
+            <p className="section-detail">
+              Source:{' '}
+              <a href="https://github.com/plebedev/demo-web-app">
+                github.com/plebedev/demo-web-app
+              </a>
+            </p>
             <ul className="section-list">
               <li>Framework: Next.js App Router with React 19.</li>
               <li>
@@ -376,6 +382,12 @@ export function DemoExperience() {
           <article className="section-card section-card--tall">
             <p className="card-kicker">Backend API</p>
             <h3>demo-service</h3>
+            <p className="section-detail">
+              Source:{' '}
+              <a href="https://github.com/plebedev/demo-service">
+                github.com/plebedev/demo-service
+              </a>
+            </p>
             <ul className="section-list">
               <li>
                 Framework: FastAPI with SQLAlchemy, Pydantic settings, and
