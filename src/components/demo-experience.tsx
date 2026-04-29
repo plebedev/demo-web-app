@@ -159,69 +159,109 @@ function AccessPanel({
           onClick={onRequestFormToggle}
           type="button"
         >
-          {requestFormOpen ? 'Hide request form' : 'Request invite'}
+          Request invite
         </button>
-        {requestFormOpen ? (
-          <form className="invite-form" onSubmit={onInviteRequestSubmit}>
-            <label className="field-label" htmlFor="invite-request-name">
-              Name
-            </label>
-            <input
-              id="invite-request-name"
-              autoComplete="name"
-              className="text-input"
-              onChange={(event) =>
-                onInviteRequestChange('name', event.target.value)
-              }
-              value={inviteRequest.name}
-            />
-            <label className="field-label" htmlFor="invite-request-email">
-              Email
-            </label>
-            <input
-              id="invite-request-email"
-              autoComplete="email"
-              className="text-input"
-              onChange={(event) =>
-                onInviteRequestChange('email', event.target.value)
-              }
-              type="email"
-              value={inviteRequest.email}
-            />
-            <label className="field-label" htmlFor="invite-request-reason">
-              Short reason
-            </label>
-            <textarea
-              id="invite-request-reason"
-              className="text-area text-area--request"
-              onChange={(event) =>
-                onInviteRequestChange('reason', event.target.value)
-              }
-              placeholder="A sentence or two is enough."
-              rows={4}
-              value={inviteRequest.reason}
-            />
-            <button
-              className="primary-button"
-              disabled={
-                inviteRequestSubmitting ||
-                !inviteRequest.name.trim() ||
-                !inviteRequest.email.trim() ||
-                !inviteRequest.reason.trim()
-              }
-              type="submit"
-            >
-              {inviteRequestSubmitting ? 'Sending request…' : 'Send request'}
-            </button>
-          </form>
-        ) : null}
         {inviteRequestNotice ? (
           <p className="success-text">{inviteRequestNotice}</p>
         ) : null}
-        {inviteRequestError ? (
-          <p className="error-text">{inviteRequestError}</p>
-        ) : null}
       </div>
+      {requestFormOpen ? (
+        <div
+          aria-labelledby="invite-request-title"
+          aria-modal="true"
+          className="invite-request-modal-overlay"
+          role="dialog"
+        >
+          <div className="invite-request-modal">
+            <div className="modal-heading-row">
+              <div>
+                <p className="card-kicker">Manual review</p>
+                <h3 id="invite-request-title">Request an invite</h3>
+              </div>
+              <button
+                className="secondary-button"
+                onClick={onRequestFormToggle}
+                type="button"
+              >
+                Close
+              </button>
+            </div>
+            <p className="section-detail">
+              Requests are reviewed by the operator. Approval is not automatic.
+            </p>
+            <form
+              className="invite-form invite-request-modal-form"
+              onSubmit={onInviteRequestSubmit}
+            >
+              <div className="field-label-row">
+                <label className="field-label" htmlFor="invite-request-name">
+                  Name
+                </label>
+                <span className="required-pill">Required</span>
+              </div>
+              <input
+                id="invite-request-name"
+                autoComplete="name"
+                className="text-input"
+                onChange={(event) =>
+                  onInviteRequestChange('name', event.target.value)
+                }
+                required
+                value={inviteRequest.name}
+              />
+              <div className="field-label-row">
+                <label className="field-label" htmlFor="invite-request-email">
+                  Email
+                </label>
+                <span className="required-pill">Required</span>
+              </div>
+              <input
+                id="invite-request-email"
+                autoComplete="email"
+                className="text-input"
+                onChange={(event) =>
+                  onInviteRequestChange('email', event.target.value)
+                }
+                required
+                type="email"
+                value={inviteRequest.email}
+              />
+              <div className="field-label-row">
+                <label className="field-label" htmlFor="invite-request-reason">
+                  Short reason
+                </label>
+                <span className="required-pill">Required</span>
+              </div>
+              <textarea
+                id="invite-request-reason"
+                className="text-area text-area--request"
+                onChange={(event) =>
+                  onInviteRequestChange('reason', event.target.value)
+                }
+                placeholder="A sentence or two is enough."
+                required
+                rows={4}
+                value={inviteRequest.reason}
+              />
+              {inviteRequestError ? (
+                <p className="error-text">{inviteRequestError}</p>
+              ) : null}
+              <button
+                className="primary-button"
+                disabled={
+                  inviteRequestSubmitting ||
+                  !inviteRequest.name.trim() ||
+                  !inviteRequest.email.trim() ||
+                  !inviteRequest.reason.trim()
+                }
+                type="submit"
+              >
+                {inviteRequestSubmitting ? 'Sending request…' : 'Send request'}
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -417,6 +457,7 @@ export function DemoExperience() {
         payload?.message ||
           'Invite request received for manual review. No auto-approval magic.',
       );
+      setRequestFormOpen(false);
     } catch (requestError) {
       setInviteRequestError(
         requestError instanceof Error

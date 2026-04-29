@@ -248,6 +248,55 @@ a {
   border-top: 1px solid rgba(29, 79, 128, 0.12);
 }
 
+.invite-request-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(36, 29, 25, 0.38);
+  backdrop-filter: blur(12px);
+}
+
+.invite-request-modal {
+  width: min(34rem, 100%);
+  max-height: min(44rem, calc(100vh - 2rem));
+  overflow: auto;
+  padding: 1.4rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 24px;
+  background: var(--panel-strong);
+  box-shadow: 0 28px 90px rgba(36, 29, 25, 0.24);
+}
+
+.modal-heading-row,
+.field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.invite-request-modal h3 {
+  margin: 0.45rem 0 0;
+  font-family: 'Libre Baskerville', Georgia, serif;
+  font-size: 1.8rem;
+  line-height: 1.15;
+}
+
+.invite-request-modal-form {
+  margin-top: 1rem;
+}
+
+.required-pill {
+  color: var(--danger);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .text-input {
   width: 100%;
   padding: 1rem 1.05rem;
@@ -676,6 +725,11 @@ a {
 .editor-meta-row {
   color: var(--muted);
   font-size: 0.92rem;
+}
+
+.execution-summary-stack {
+  display: grid;
+  gap: 1rem;
 }
 
 .source-list {

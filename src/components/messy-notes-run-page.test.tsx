@@ -113,6 +113,19 @@ describe('MessyNotesRunPage', () => {
           });
         }
 
+        if (url.endsWith('/api/bff/runs/7/summary')) {
+          return Response.json({
+            run_id: 7,
+            status: 'draft',
+            failure_message: null,
+            phase_summary: [],
+            tool_usage_summary: [],
+            handoff_summary: [],
+            audit_summary: null,
+            post_processor_summary: [],
+          });
+        }
+
         if (url.endsWith('/api/bff/runs')) {
           return new Response(
             JSON.stringify({
@@ -312,6 +325,25 @@ describe('MessyNotesRunPage', () => {
           );
         }
 
+        if (url.endsWith('/api/bff/runs/7/summary')) {
+          return Response.json({
+            run_id: 7,
+            status: 'completed',
+            failure_message: null,
+            phase_summary: [
+              'run_execution_started: Started workflow messy-notes-v1.',
+              'agent_started: extractor',
+            ],
+            tool_usage_summary: ['extract_action_items: 1 result event'],
+            handoff_summary: ['extractor to reconciler'],
+            audit_summary:
+              'Tool use and handoffs stayed inside the configured workflow.',
+            post_processor_summary: [
+              'audit-tool-usage-and-handoffs: Post-processor audit-tool-usage-and-handoffs completed.',
+            ],
+          });
+        }
+
         if (url.endsWith('/api/bff/runs')) {
           return new Response(
             JSON.stringify({
@@ -477,15 +509,17 @@ describe('MessyNotesRunPage', () => {
       screen.getByText('This brief summarizes the notes.'),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
+      screen.getAllByText(
         'Tool use and handoffs stayed inside the configured workflow.',
-      ),
-    ).toBeInTheDocument();
+      ).length,
+    ).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: 'ok' }));
     expect(screen.getByText('Audit details')).toBeInTheDocument();
     expect(screen.getByText('extract_action_items')).toBeInTheDocument();
     expect(screen.getByText(/Need legal summary/)).toBeInTheDocument();
-    expect(screen.getByText('extractor to reconciler')).toBeInTheDocument();
+    expect(
+      screen.getAllByText('extractor to reconciler').length,
+    ).toBeGreaterThan(0);
     const submitCall = fetchMock.mock.calls.find(
       ([url]) => url === '/api/bff/runs/7/submit',
     );
@@ -528,6 +562,18 @@ describe('MessyNotesRunPage', () => {
       }
       if (url.endsWith('/api/bff/runs/7/events')) {
         return Response.json([]);
+      }
+      if (url.endsWith('/api/bff/runs/7/summary')) {
+        return Response.json({
+          run_id: 7,
+          status: 'draft',
+          failure_message: null,
+          phase_summary: [],
+          tool_usage_summary: [],
+          handoff_summary: [],
+          audit_summary: null,
+          post_processor_summary: [],
+        });
       }
       if (url.endsWith('/api/bff/runs')) {
         return Response.json({ runs: [draftRun] });
@@ -606,6 +652,18 @@ describe('MessyNotesRunPage', () => {
         }
         if (url.endsWith('/api/bff/runs/7/events')) {
           return Response.json([]);
+        }
+        if (url.endsWith('/api/bff/runs/7/summary')) {
+          return Response.json({
+            run_id: 7,
+            status: 'completed',
+            failure_message: null,
+            phase_summary: [],
+            tool_usage_summary: [],
+            handoff_summary: [],
+            audit_summary: null,
+            post_processor_summary: [],
+          });
         }
         if (url.endsWith('/api/bff/runs')) {
           return Response.json({ runs: [completedRun] });

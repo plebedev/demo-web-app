@@ -11,6 +11,7 @@ import {
   DemoRun,
   DemoRunListResponse,
   RunEvent,
+  RunExecutionSummary,
   SampleChaosListResponse,
   SampleChaosSet,
   deriveRunTitle,
@@ -34,6 +35,7 @@ export function MessyNotesRunPage({
   const { accessToken, isChecking } = useProtectedAccess();
   const [run, setRun] = useState<DemoRun | null>(null);
   const [events, setEvents] = useState<RunEvent[]>([]);
+  const [summary, setSummary] = useState<RunExecutionSummary | null>(null);
   const [runs, setRuns] = useState<DemoRun[]>([]);
   const [samples, setSamples] = useState<SampleChaosSet[]>([]);
   const [selectedSampleKey, setSelectedSampleKey] = useState('');
@@ -62,25 +64,34 @@ export function MessyNotesRunPage({
 
     async function loadRun() {
       try {
-        const [runResponse, listResponse, eventsResponse, samplesResponse] =
-          await Promise.all([
-            fetch(`/api/bff/runs/${runId}`, {
-              cache: 'no-store',
-              headers: authHeaders(token),
-            }),
-            fetch('/api/bff/runs', {
-              cache: 'no-store',
-              headers: authHeaders(token),
-            }),
-            fetch(`/api/bff/runs/${runId}/events`, {
-              cache: 'no-store',
-              headers: authHeaders(token),
-            }),
-            fetch('/api/bff/runs/samples', {
-              cache: 'no-store',
-              headers: authHeaders(token),
-            }),
-          ]);
+        const [
+          runResponse,
+          listResponse,
+          eventsResponse,
+          summaryResponse,
+          samplesResponse,
+        ] = await Promise.all([
+          fetch(`/api/bff/runs/${runId}`, {
+            cache: 'no-store',
+            headers: authHeaders(token),
+          }),
+          fetch('/api/bff/runs', {
+            cache: 'no-store',
+            headers: authHeaders(token),
+          }),
+          fetch(`/api/bff/runs/${runId}/events`, {
+            cache: 'no-store',
+            headers: authHeaders(token),
+          }),
+          fetch(`/api/bff/runs/${runId}/summary`, {
+            cache: 'no-store',
+            headers: authHeaders(token),
+          }),
+          fetch('/api/bff/runs/samples', {
+            cache: 'no-store',
+            headers: authHeaders(token),
+          }),
+        ]);
 
         if (!runResponse.ok) {
           throw new Error('Unable to load this run.');
@@ -95,6 +106,9 @@ export function MessyNotesRunPage({
         const eventsPayload = eventsResponse.ok
           ? ((await eventsResponse.json()) as RunEvent[])
           : [];
+        const summaryPayload = summaryResponse.ok
+          ? ((await summaryResponse.json()) as RunExecutionSummary)
+          : null;
         const samplesPayload = samplesResponse.ok
           ? ((await samplesResponse.json()) as SampleChaosListResponse)
           : { samples: [] };
@@ -105,6 +119,7 @@ export function MessyNotesRunPage({
 
         setRun(runPayload);
         setEvents(eventsPayload);
+        setSummary(summaryPayload);
         setRuns(listPayload.runs);
         setSamples(samplesPayload.samples);
         setSelectedSampleKey(samplesPayload.samples[0]?.key || '');
@@ -406,6 +421,7 @@ export function MessyNotesRunPage({
       const payload = (await response.json()) as DemoRun;
       setRun(payload);
       await refreshEvents(payload.id);
+      await refreshSummary(payload.id);
       setNotice(
         payload.status === 'completed'
           ? 'Run completed. The workflow produced a bounded brief and audit.'
@@ -434,6 +450,20 @@ export function MessyNotesRunPage({
     });
     if (response.ok) {
       setEvents((await response.json()) as RunEvent[]);
+    }
+  }
+
+  async function refreshSummary(targetRunId: number) {
+    if (!accessToken) {
+      return;
+    }
+
+    const response = await fetch(`/api/bff/runs/${targetRunId}/summary`, {
+      cache: 'no-store',
+      headers: authHeaders(accessToken),
+    });
+    if (response.ok) {
+      setSummary((await response.json()) as RunExecutionSummary);
     }
   }
 
@@ -492,7 +522,8 @@ export function MessyNotesRunPage({
             {run.status === 'failed' ? (
               <p className="error-text">
                 This run failed. You can adjust the notes and submit again; the
-                old drama does not get a vote.
+                workflow will keep the failure state visible.
+                {run.failure_message ? ` ${run.failure_message}` : ''}
               </p>
             ) : null}
           </section>
@@ -770,7 +801,31 @@ export function MessyNotesRunPage({
             <article className="section-card">
               <p className="card-kicker">Execution summary</p>
               <h3>How it worked</h3>
-              {events.length ? (
+              {summary ? (
+                <div className="execution-summary-stack">
+                  {summary.failure_message ? (
+                    <p className="error-text">{summary.failure_message}</p>
+                  ) : null}
+                  <SummaryList
+                    emptyText="No workflow phases have been recorded yet."
+                    items={summary.phase_summary}
+                    title="Phases"
+                  />
+                  <SummaryList
+                    emptyText="No tool results have been recorded yet."
+                    items={summary.tool_usage_summary}
+                    title="Tools"
+                  />
+                  <SummaryList
+                    emptyText="No handoffs have been recorded yet."
+                    items={summary.handoff_summary}
+                    title="Handoffs"
+                  />
+                  {summary.audit_summary ? (
+                    <p className="success-text">{summary.audit_summary}</p>
+                  ) : null}
+                </div>
+              ) : events.length ? (
                 <ul className="source-list">
                   {events.slice(-8).map((event) => (
                     <li key={event.id}>
@@ -999,6 +1054,33 @@ function AuditDetailsOverlay({
           </section>
         </div>
       </div>
+    </div>
+  );
+}
+
+function SummaryList({
+  emptyText,
+  items,
+  title,
+}: Readonly<{
+  emptyText: string;
+  items: string[];
+  title: string;
+}>) {
+  return (
+    <div>
+      <p className="card-kicker">{title}</p>
+      {items.length ? (
+        <ul className="source-list">
+          {items.slice(0, 6).map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="section-detail section-detail--compact-left">
+          {emptyText}
+        </p>
+      )}
     </div>
   );
 }
