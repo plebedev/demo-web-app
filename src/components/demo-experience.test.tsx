@@ -111,6 +111,10 @@ describe('DemoExperience', () => {
     fireEvent.click(
       await screen.findByRole('button', { name: 'Request invite' }),
     );
+    expect(
+      screen.getByRole('dialog', { name: 'Request an invite' }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText('Required')).toHaveLength(3);
     fireEvent.change(screen.getByLabelText('Name'), {
       target: { value: 'Ada Lovelace' },
     });
@@ -125,6 +129,7 @@ describe('DemoExperience', () => {
     expect(
       await screen.findByText('Invite request received for manual review.'),
     ).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(replaceMock).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/bff/access/invite-requests',
