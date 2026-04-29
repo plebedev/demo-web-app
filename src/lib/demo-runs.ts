@@ -15,6 +15,8 @@ export type DemoRun = {
   submitted_at: string | null;
   completed_at: string | null;
   failed_at: string | null;
+  failure_message: string | null;
+  failure_internal_reason: string | null;
   input_text: string | null;
   normalized_input_text: string | null;
   input_metadata_json: Record<string, unknown> | null;
@@ -63,6 +65,17 @@ export type RunEvent = {
   post_processor_key: string | null;
   message: string | null;
   created_at: string;
+};
+
+export type RunExecutionSummary = {
+  run_id: number;
+  status: RunStatus;
+  failure_message: string | null;
+  phase_summary: string[];
+  tool_usage_summary: string[];
+  handoff_summary: string[];
+  audit_summary: string | null;
+  post_processor_summary: string[];
 };
 
 export type PostProcessorAuditResult = {
