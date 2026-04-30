@@ -93,7 +93,8 @@ describe('DemoExperience', () => {
           JSON.stringify({
             id: 12,
             status: 'submitted',
-            message: 'Invite request received for manual review.',
+            message:
+              'Invite request received. Your invite is being prepared and emailed.',
           }),
           {
             status: 201,
@@ -127,7 +128,9 @@ describe('DemoExperience', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send request' }));
 
     expect(
-      await screen.findByText('Invite request received for manual review.'),
+      await screen.findByText(
+        'Invite request received. Your invite is being prepared and emailed.',
+      ),
     ).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(replaceMock).not.toHaveBeenCalled();

@@ -151,8 +151,8 @@ function AccessPanel({
       {error ? <p className="error-text">{error}</p> : null}
       <div className="invite-request-block">
         <p className="section-detail">
-          No code yet? Request an invite for manual review. No automatic
-          approval, no surprise sales funnel.
+          No code yet? Request an invite and the backend will prepare and email
+          one automatically.
         </p>
         <button
           className="secondary-button"
@@ -175,7 +175,7 @@ function AccessPanel({
           <div className="invite-request-modal">
             <div className="modal-heading-row">
               <div>
-                <p className="card-kicker">Manual review</p>
+                <p className="card-kicker">Invite request</p>
                 <h3 id="invite-request-title">Request an invite</h3>
               </div>
               <button
@@ -187,7 +187,8 @@ function AccessPanel({
               </button>
             </div>
             <p className="section-detail">
-              Requests are reviewed by the operator. Approval is not automatic.
+              The request is saved first, then the invite email is prepared in
+              the background.
             </p>
             <form
               className="invite-form invite-request-modal-form"
@@ -455,7 +456,7 @@ export function DemoExperience() {
       setInviteRequest({ name: '', email: '', reason: '' });
       setInviteRequestNotice(
         payload?.message ||
-          'Invite request received for manual review. No auto-approval magic.',
+          'Invite request received. Your invite is being prepared and emailed.',
       );
       setRequestFormOpen(false);
     } catch (requestError) {
@@ -682,7 +683,7 @@ export function DemoExperience() {
               'Run creation, draft persistence, retrieval, and bounded workflow execution.',
               'Generated brief storage, structured run events, and post-run audit summaries.',
               'Protected API access through the BFF.',
-              'Internal admin invitation management endpoints and script.',
+              'Automatic invite fulfillment by email.',
             ]}
             title="Implemented"
           />

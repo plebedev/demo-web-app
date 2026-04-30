@@ -147,7 +147,7 @@ This milestone turns the M2 shell into a real phase-1 intake flow:
 
 - `/` is still the invite gate
 - successful invite redemption still routes to `/messy-notes`
-- visitors without a code can submit a simple invite request for manual review
+- visitors without a code can submit a simple invite request and receive the code by email
 - `/messy-notes/<runId>` now accepts pasted text plus file uploads
 - accepted files, rejected files, and trimming warnings are rendered directly in the protected workspace
 - the UI stays explicit about what is unsupported and why
@@ -336,6 +336,7 @@ The remote script used by this flow is [deploy/scripts/remote-deploy.sh](/Users/
 - Successful code redemption returns a signed backend token and stores it in localStorage
 - Protected UI calls send the token through the BFF to the backend
 - If the backend rejects the token as invalid or expired, the UI clears local state and returns to invitation entry
+- Invite requests are submitted through the BFF; the backend persists them and prepares the invite email asynchronously
 
 ## Notes for future backend and webhook routes
 
