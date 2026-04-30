@@ -223,7 +223,7 @@ export function MessyNotesRunPage({
   }
 
   async function handleSave() {
-    if (!accessToken || !run) {
+    if (!accessToken || !run || !canSubmit) {
       return;
     }
 
@@ -676,14 +676,16 @@ export function MessyNotesRunPage({
               </div>
 
               <div className="workspace-toolbar">
-                <button
-                  className="primary-button"
-                  disabled={isSaving}
-                  onClick={handleSave}
-                  type="button"
-                >
-                  {isSaving ? 'Saving…' : 'Save draft'}
-                </button>
+                {canSubmit ? (
+                  <button
+                    className="primary-button"
+                    disabled={isSaving}
+                    onClick={handleSave}
+                    type="button"
+                  >
+                    {isSaving ? 'Saving…' : 'Save draft'}
+                  </button>
+                ) : null}
                 <button
                   className="secondary-button"
                   disabled={!canSubmit || isSubmitting}

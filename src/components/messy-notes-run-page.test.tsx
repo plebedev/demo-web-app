@@ -717,4 +717,75 @@ describe('MessyNotesRunPage', () => {
       await screen.findByText('One follow-up used. Boundaries restored.'),
     ).toBeInTheDocument();
   });
+
+  it('does not show draft saving for completed runs', async () => {
+    const completedRun = {
+      id: 7,
+      status: 'completed',
+      workflow_key: 'messy-notes-v1',
+      title: 'Board prep',
+      created_at: '2026-04-27T00:00:00Z',
+      updated_at: '2026-04-27T00:00:00Z',
+      submitted_at: '2026-04-27T01:00:00Z',
+      completed_at: '2026-04-27T01:00:02Z',
+      failed_at: null,
+      failure_message: null,
+      failure_internal_reason: null,
+      input_text: 'Decision approved',
+      normalized_input_text: 'Decision approved',
+      input_metadata_json: null,
+      uploaded_files_json: [],
+      ingestion_summary_json: null,
+      output_brief_json: {
+        title: 'Board prep',
+        executive_summary: 'This brief summarizes the notes.',
+        sections: [{ heading: 'Decisions', content: '- Decision approved' }],
+        open_questions: [],
+      },
+      post_processor_results_json: null,
+      follow_up_count: 0,
+      follow_up_response_json: null,
+      notification_preference_json: null,
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith('/api/bff/runs/7')) {
+          return Response.json(completedRun);
+        }
+        if (url.endsWith('/api/bff/runs/7/events')) {
+          return Response.json([]);
+        }
+        if (url.endsWith('/api/bff/runs/7/summary')) {
+          return Response.json({
+            run_id: 7,
+            status: 'completed',
+            failure_message: null,
+            phase_summary: [],
+            tool_usage_summary: [],
+            handoff_summary: [],
+            audit_summary: null,
+            post_processor_summary: [],
+          });
+        }
+        if (url.endsWith('/api/bff/runs')) {
+          return Response.json({ runs: [completedRun] });
+        }
+        if (url.endsWith('/api/bff/runs/samples')) {
+          return Response.json({ samples: [] });
+        }
+        throw new Error(`Unexpected fetch URL: ${url}`);
+      }),
+    );
+
+    render(<MessyNotesRunPage runId={7} />);
+
+    expect(
+      await screen.findByRole('button', { name: 'Submit run' }),
+    ).toBeDisabled();
+    expect(
+      screen.queryByRole('button', { name: 'Save draft' }),
+    ).not.toBeInTheDocument();
+  });
 });
