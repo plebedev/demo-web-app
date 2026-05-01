@@ -39,6 +39,10 @@ describe('MessyNotesRunPage', () => {
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input);
 
+        if (url.endsWith('/api/bff/status')) {
+          return Response.json({ features: { SmsNotification: true } });
+        }
+
         if (url.endsWith('/api/bff/runs/7')) {
           return new Response(
             JSON.stringify({
@@ -201,6 +205,10 @@ describe('MessyNotesRunPage', () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
+
+        if (url.endsWith('/api/bff/status')) {
+          return Response.json({ features: { SmsNotification: true } });
+        }
 
         if (url.endsWith('/api/bff/runs/7')) {
           return new Response(
@@ -599,6 +607,9 @@ describe('MessyNotesRunPage', () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
+        if (url.endsWith('/api/bff/status')) {
+          return Response.json({ features: { SmsNotification: true } });
+        }
         if (url.endsWith('/api/bff/runs/7')) {
           return Response.json(draftRun);
         }
@@ -668,6 +679,9 @@ describe('MessyNotesRunPage', () => {
   it('loads sample chaos into a draft run', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
+      if (url.endsWith('/api/bff/status')) {
+        return Response.json({ features: { SmsNotification: true } });
+      }
       const draftRun = {
         id: 7,
         status: 'draft',
@@ -780,6 +794,9 @@ describe('MessyNotesRunPage', () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
+        if (url.endsWith('/api/bff/status')) {
+          return Response.json({ features: { SmsNotification: true } });
+        }
         if (url.endsWith('/api/bff/runs/7')) {
           return Response.json(completedRun);
         }
@@ -879,6 +896,9 @@ describe('MessyNotesRunPage', () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
+        if (url.endsWith('/api/bff/status')) {
+          return Response.json({ features: { SmsNotification: true } });
+        }
         if (url.endsWith('/api/bff/runs/7')) {
           return Response.json(completedRun);
         }
@@ -931,6 +951,76 @@ describe('MessyNotesRunPage', () => {
     ).toBeDisabled();
   });
 
+  it('hides SMS controls when the backend feature flag is disabled', async () => {
+    const draftRun = {
+      id: 7,
+      status: 'draft',
+      workflow_key: 'messy-notes-v1',
+      title: 'Board prep',
+      created_at: '2026-04-27T00:00:00Z',
+      updated_at: '2026-04-27T00:00:00Z',
+      submitted_at: null,
+      completed_at: null,
+      failed_at: null,
+      failure_message: null,
+      failure_internal_reason: null,
+      input_text: 'Decision approved',
+      normalized_input_text: 'Decision approved',
+      input_metadata_json: null,
+      uploaded_files_json: [],
+      ingestion_summary_json: null,
+      output_brief_json: null,
+      post_processor_results_json: null,
+      follow_up_count: 0,
+      follow_up_response_json: null,
+      notification_preference_json: null,
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith('/api/bff/status')) {
+          return Response.json({ features: { SmsNotification: false } });
+        }
+        if (url.endsWith('/api/bff/runs/7')) {
+          return Response.json(draftRun);
+        }
+        if (url.endsWith('/api/bff/runs/7/events')) {
+          return Response.json([]);
+        }
+        if (url.endsWith('/api/bff/runs/7/summary')) {
+          return Response.json({
+            run_id: 7,
+            status: 'draft',
+            failure_message: null,
+            phase_summary: [],
+            tool_usage_summary: [],
+            handoff_summary: [],
+            audit_summary: null,
+            post_processor_summary: [],
+          });
+        }
+        if (url.endsWith('/api/bff/runs')) {
+          return Response.json({ runs: [draftRun] });
+        }
+        if (url.endsWith('/api/bff/runs/samples')) {
+          return Response.json({ samples: [] });
+        }
+        throw new Error(`Unexpected fetch URL: ${url}`);
+      }),
+    );
+
+    render(<MessyNotesRunPage runId={7} />);
+
+    await screen.findByText('What made it into the run');
+    expect(
+      screen.queryByLabelText('Text me when it is done'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Save notification preference' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('does not show draft saving for completed runs', async () => {
     const completedRun = {
       id: 7,
@@ -964,6 +1054,9 @@ describe('MessyNotesRunPage', () => {
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input);
+        if (url.endsWith('/api/bff/status')) {
+          return Response.json({ features: { SmsNotification: true } });
+        }
         if (url.endsWith('/api/bff/runs/7')) {
           return Response.json(completedRun);
         }

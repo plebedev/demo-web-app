@@ -44,6 +44,8 @@ export function MessyNotesRunPage({
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [wantsSms, setWantsSms] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [smsNotificationAvailable, setSmsNotificationAvailable] =
+    useState(false);
   const [phoneNumberBlocked, setPhoneNumberBlocked] = useState(false);
   const [isCheckingPhoneStatus, setIsCheckingPhoneStatus] = useState(false);
   const [followUpQuestion, setFollowUpQuestion] = useState('');
@@ -158,6 +160,45 @@ export function MessyNotesRunPage({
     };
   }, [accessToken, runId]);
 
+  useEffect(() => {
+    if (!accessToken) {
+      return;
+    }
+    const token = accessToken;
+
+    let active = true;
+
+    async function loadFeatureStatus() {
+      try {
+        const response = await fetch('/api/bff/status', {
+          cache: 'no-store',
+          headers: authHeaders(token),
+        });
+        if (!response.ok) {
+          return;
+        }
+        const payload = (await response.json()) as {
+          features?: Record<string, boolean>;
+        };
+        if (active) {
+          setSmsNotificationAvailable(
+            payload.features?.SmsNotification === true,
+          );
+        }
+      } catch {
+        if (active) {
+          setSmsNotificationAvailable(false);
+        }
+      }
+    }
+
+    void loadFeatureStatus();
+
+    return () => {
+      active = false;
+    };
+  }, [accessToken]);
+
   const boardText = useMemo(
     () => summarizeStickyBoardText(run, inputText),
     [inputText, run],
@@ -192,6 +233,9 @@ export function MessyNotesRunPage({
 
   function hasUnsavedNotificationPreferenceChanges() {
     if (!run) {
+      return false;
+    }
+    if (!smsNotificationAvailable) {
       return false;
     }
 
@@ -716,65 +760,67 @@ export function MessyNotesRunPage({
                 <span>Follow-up count: {run.follow_up_count}</span>
               </div>
 
-              <div className="notification-box">
-                <label className="checkbox-row" htmlFor="notify-sms">
-                  <input
-                    checked={wantsSms}
-                    disabled={phoneNumberBlocked && !wantsSms}
-                    id="notify-sms"
-                    onChange={(event) => {
-                      setWantsSms(event.target.checked);
-                      if (!event.target.checked) {
+              {smsNotificationAvailable ? (
+                <div className="notification-box">
+                  <label className="checkbox-row" htmlFor="notify-sms">
+                    <input
+                      checked={wantsSms}
+                      disabled={phoneNumberBlocked && !wantsSms}
+                      id="notify-sms"
+                      onChange={(event) => {
+                        setWantsSms(event.target.checked);
+                        if (!event.target.checked) {
+                          setPhoneNumberBlocked(false);
+                        }
+                      }}
+                      type="checkbox"
+                    />
+                    <span>Text me when it is done</span>
+                  </label>
+                  {wantsSms ? (
+                    <input
+                      aria-label="US phone number"
+                      className="text-input"
+                      aria-invalid={phoneNumberBlocked}
+                      onBlur={handlePhoneStatusCheck}
+                      onChange={(event) => {
+                        setPhoneNumber(event.target.value);
                         setPhoneNumberBlocked(false);
-                      }
-                    }}
-                    type="checkbox"
-                  />
-                  <span>Text me when it is done</span>
-                </label>
-                {wantsSms ? (
-                  <input
-                    aria-label="US phone number"
-                    className="text-input"
-                    aria-invalid={phoneNumberBlocked}
-                    onBlur={handlePhoneStatusCheck}
-                    onChange={(event) => {
-                      setPhoneNumber(event.target.value);
-                      setPhoneNumberBlocked(false);
-                    }}
-                    placeholder="US phone number"
-                    value={phoneNumber}
-                  />
-                ) : null}
-                {phoneNumberBlocked ? (
-                  <p className="error-text">
-                    This number is in the permanent opt-out list.
+                      }}
+                      placeholder="US phone number"
+                      value={phoneNumber}
+                    />
+                  ) : null}
+                  {phoneNumberBlocked ? (
+                    <p className="error-text">
+                      This number is in the permanent opt-out list.
+                    </p>
+                  ) : null}
+                  <button
+                    className="ghost-button"
+                    disabled={
+                      isSavingPreference ||
+                      isCheckingPhoneStatus ||
+                      (wantsSms && phoneNumberBlocked)
+                    }
+                    onClick={handleSaveNotificationPreference}
+                    type="button"
+                  >
+                    {isSavingPreference || isCheckingPhoneStatus
+                      ? 'Saving…'
+                      : 'Save notification preference'}
+                  </button>
+                  <p className="section-detail section-detail--compact-left">
+                    By checking this box, you agree to receive SMS notifications
+                    related to your demo run. Message frequency varies. Message
+                    and data rates may apply. Reply STOP to opt out.
                   </p>
-                ) : null}
-                <button
-                  className="ghost-button"
-                  disabled={
-                    isSavingPreference ||
-                    isCheckingPhoneStatus ||
-                    (wantsSms && phoneNumberBlocked)
-                  }
-                  onClick={handleSaveNotificationPreference}
-                  type="button"
-                >
-                  {isSavingPreference || isCheckingPhoneStatus
-                    ? 'Saving…'
-                    : 'Save notification preference'}
-                </button>
-                <p className="section-detail section-detail--compact-left">
-                  By checking this box, you agree to receive SMS notifications
-                  related to your demo run. Message frequency varies. Message
-                  and data rates may apply. Reply STOP to opt out.
-                </p>
-                <p className="section-detail section-detail--compact-left">
-                  Twilio sends the completion text from backend code. Replies
-                  are limited to two AI-generated SMS turns.
-                </p>
-              </div>
+                  <p className="section-detail section-detail--compact-left">
+                    Twilio sends the completion text from backend code. Replies
+                    are limited to two AI-generated SMS turns.
+                  </p>
+                </div>
+              ) : null}
 
               <div className="workspace-toolbar">
                 {canSubmit ? (
