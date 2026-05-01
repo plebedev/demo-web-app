@@ -44,6 +44,8 @@ export function MessyNotesRunPage({
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [wantsSms, setWantsSms] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [phoneNumberBlocked, setPhoneNumberBlocked] = useState(false);
+  const [isCheckingPhoneStatus, setIsCheckingPhoneStatus] = useState(false);
   const [followUpQuestion, setFollowUpQuestion] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -131,6 +133,10 @@ export function MessyNotesRunPage({
         setPhoneNumber(
           runPayload.notification_preference_json?.phone_number || '',
         );
+        setPhoneNumberBlocked(
+          runPayload.notification_preference_json?.phone_number_blocked ||
+            false,
+        );
         setError(null);
       } catch (loadError) {
         if (!active) {
@@ -184,6 +190,20 @@ export function MessyNotesRunPage({
     );
   }
 
+  function hasUnsavedNotificationPreferenceChanges() {
+    if (!run) {
+      return false;
+    }
+
+    const savedPreference = run.notification_preference_json;
+    const savedWantsSms = savedPreference?.wants_sms || false;
+    const savedPhoneNumber = savedPreference?.phone_number || '';
+    return (
+      wantsSms !== savedWantsSms ||
+      (wantsSms && phoneNumber.trim() !== savedPhoneNumber)
+    );
+  }
+
   async function persistIngestion() {
     if (!accessToken || !run) {
       return null;
@@ -222,6 +242,49 @@ export function MessyNotesRunPage({
     return nextRun;
   }
 
+  async function persistNotificationPreference() {
+    if (!accessToken || !run) {
+      throw new Error('Unable to save notification preference.');
+    }
+    if (!hasUnsavedNotificationPreferenceChanges()) {
+      return run;
+    }
+
+    const response = await fetch(
+      `/api/bff/runs/${run.id}/notification-preference`,
+      {
+        method: 'POST',
+        headers: {
+          ...authHeaders(accessToken),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          wants_sms: wantsSms,
+          phone_number: wantsSms ? phoneNumber : null,
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as {
+        detail?: string;
+      } | null;
+      throw new Error(
+        payload?.detail || 'Unable to save notification preference.',
+      );
+    }
+
+    const nextRun = (await response.json()) as DemoRun;
+    setRun(nextRun);
+    setWantsSms(nextRun.notification_preference_json?.wants_sms || false);
+    setPhoneNumber(nextRun.notification_preference_json?.phone_number || '');
+    setPhoneNumberBlocked(
+      nextRun.notification_preference_json?.phone_number_blocked || false,
+    );
+    setError(null);
+    return nextRun;
+  }
+
   async function handleSave() {
     if (!accessToken || !run || !canSubmit) {
       return;
@@ -236,7 +299,9 @@ export function MessyNotesRunPage({
         return;
       }
 
-      setNotice('Draft saved. No fake ranking, just bounded ingestion.');
+      await persistNotificationPreference();
+
+      setNotice('Draft saved. Notification preference is up to date.');
     } catch (saveError) {
       setError(
         saveError instanceof Error
@@ -302,37 +367,10 @@ export function MessyNotesRunPage({
     setNotice(null);
 
     try {
-      const response = await fetch(
-        `/api/bff/runs/${run.id}/notification-preference`,
-        {
-          method: 'POST',
-          headers: {
-            ...authHeaders(accessToken),
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            wants_sms: wantsSms,
-            phone_number: wantsSms ? phoneNumber : null,
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as {
-          detail?: string;
-        } | null;
-        throw new Error(
-          payload?.detail || 'Unable to save notification preference.',
-        );
-      }
-
-      const nextRun = (await response.json()) as DemoRun;
-      setRun(nextRun);
-      setWantsSms(nextRun.notification_preference_json?.wants_sms || false);
-      setPhoneNumber(nextRun.notification_preference_json?.phone_number || '');
+      const nextRun = await persistNotificationPreference();
       setNotice(
         nextRun.notification_preference_json?.wants_sms
-          ? 'Preference saved. SMS sending is a coded path, not an agent trick.'
+          ? 'Preference saved. The backend will send a Twilio SMS when this run completes.'
           : 'Preference saved. No text will be attempted for this run.',
       );
       setError(null);
@@ -344,6 +382,39 @@ export function MessyNotesRunPage({
       );
     } finally {
       setIsSavingPreference(false);
+    }
+  }
+
+  async function handlePhoneStatusCheck() {
+    if (!accessToken || !wantsSms || !phoneNumber.trim()) {
+      setPhoneNumberBlocked(false);
+      return;
+    }
+
+    setIsCheckingPhoneStatus(true);
+    try {
+      const response = await fetch('/api/bff/runs/sms-status', {
+        method: 'POST',
+        headers: {
+          ...authHeaders(accessToken),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ phone_number: phoneNumber }),
+      });
+      if (!response.ok) {
+        return;
+      }
+      const payload = (await response.json()) as {
+        valid: boolean;
+        phone_number: string | null;
+        phone_number_blocked: boolean;
+      };
+      setPhoneNumberBlocked(payload.phone_number_blocked);
+      if (payload.phone_number) {
+        setPhoneNumber(payload.phone_number);
+      }
+    } finally {
+      setIsCheckingPhoneStatus(false);
     }
   }
 
@@ -404,6 +475,11 @@ export function MessyNotesRunPage({
           return;
         }
         targetRun = savedRun;
+      }
+
+      if (hasUnsavedNotificationPreferenceChanges()) {
+        const preferenceRun = await persistNotificationPreference();
+        targetRun = preferenceRun;
       }
 
       const response = await fetch(`/api/bff/runs/${targetRun.id}/submit`, {
@@ -644,8 +720,14 @@ export function MessyNotesRunPage({
                 <label className="checkbox-row" htmlFor="notify-sms">
                   <input
                     checked={wantsSms}
+                    disabled={phoneNumberBlocked && !wantsSms}
                     id="notify-sms"
-                    onChange={(event) => setWantsSms(event.target.checked)}
+                    onChange={(event) => {
+                      setWantsSms(event.target.checked);
+                      if (!event.target.checked) {
+                        setPhoneNumberBlocked(false);
+                      }
+                    }}
                     type="checkbox"
                   />
                   <span>Text me when it is done</span>
@@ -654,24 +736,43 @@ export function MessyNotesRunPage({
                   <input
                     aria-label="US phone number"
                     className="text-input"
-                    onChange={(event) => setPhoneNumber(event.target.value)}
+                    aria-invalid={phoneNumberBlocked}
+                    onBlur={handlePhoneStatusCheck}
+                    onChange={(event) => {
+                      setPhoneNumber(event.target.value);
+                      setPhoneNumberBlocked(false);
+                    }}
                     placeholder="US phone number"
                     value={phoneNumber}
                   />
                 ) : null}
+                {phoneNumberBlocked ? (
+                  <p className="error-text">
+                    This number is in the permanent opt-out list.
+                  </p>
+                ) : null}
                 <button
                   className="ghost-button"
-                  disabled={isSavingPreference}
+                  disabled={
+                    isSavingPreference ||
+                    isCheckingPhoneStatus ||
+                    (wantsSms && phoneNumberBlocked)
+                  }
                   onClick={handleSaveNotificationPreference}
                   type="button"
                 >
-                  {isSavingPreference
+                  {isSavingPreference || isCheckingPhoneStatus
                     ? 'Saving…'
                     : 'Save notification preference'}
                 </button>
                 <p className="section-detail section-detail--compact-left">
-                  This captures preference only. Actual SMS is a coded
-                  completion path, not a workflow tool pretending to be a phone.
+                  By checking this box, you agree to receive SMS notifications
+                  related to your demo run. Message frequency varies. Message
+                  and data rates may apply. Reply STOP to opt out.
+                </p>
+                <p className="section-detail section-detail--compact-left">
+                  Twilio sends the completion text from backend code. Replies
+                  are limited to two AI-generated SMS turns.
                 </p>
               </div>
 

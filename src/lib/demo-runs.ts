@@ -38,6 +38,7 @@ export type FollowUpResponse = {
 export type NotificationPreference = {
   wants_sms: boolean;
   phone_number: string | null;
+  phone_number_blocked: boolean;
 };
 
 export type SampleChaosSet = {
