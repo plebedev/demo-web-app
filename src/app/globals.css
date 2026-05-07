@@ -111,15 +111,21 @@ a {
   gap: 0.5rem;
 }
 
-.topnav a {
+.topnav a,
+.topnav button {
   padding: 0.55rem 0.85rem;
+  border: 0;
   border-radius: 999px;
   color: var(--muted);
+  font: inherit;
   font-size: 0.92rem;
   text-decoration: none;
+  background: transparent;
+  cursor: pointer;
 }
 
-.topnav a:hover {
+.topnav a:hover,
+.topnav button:hover {
   color: var(--accent-strong);
   background: var(--accent-soft);
 }
@@ -686,6 +692,90 @@ a {
   margin-top: 1.2rem;
 }
 
+.rag-config-grid {
+  display: grid;
+  grid-template-columns: minmax(16rem, 0.72fr) minmax(0, 1.28fr);
+  gap: 1rem;
+  margin-top: 1.2rem;
+}
+
+.rag-persona-list,
+.rag-documents-placeholder {
+  align-content: start;
+}
+
+.rag-persona-list-items {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.rag-persona-list-item {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.85rem;
+  border: 1px solid rgba(29, 79, 128, 0.12);
+  border-radius: 14px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.68);
+  cursor: pointer;
+}
+
+.rag-persona-list-item:hover,
+.rag-persona-list-item--active {
+  border-color: rgba(29, 79, 128, 0.25);
+  background: rgba(29, 79, 128, 0.08);
+}
+
+.rag-persona-list-item span {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.rag-documents-placeholder {
+  grid-column: 1 / -1;
+  border-style: dashed;
+  background: rgba(255, 252, 247, 0.62);
+}
+
+.rag-document-list {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.rag-document-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(29, 79, 128, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.rag-document-list-item div {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.rag-document-list-item strong,
+.rag-document-list-item span {
+  overflow-wrap: anywhere;
+}
+
+.rag-document-list-item span {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
 .run-card {
   text-decoration: none;
   transition:
@@ -1173,6 +1263,7 @@ a {
   .experience-actions,
   .experience-control-row,
   .overview-strip,
+  .rag-config-grid,
   .run-grid,
   .editor-grid,
   .editor-panels,
