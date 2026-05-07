@@ -5,18 +5,21 @@ import { useRouter } from 'next/navigation';
 import React, { ReactNode } from 'react';
 
 import { clearStoredAccessToken } from '@/lib/access-token';
+import { ExperienceId } from '@/lib/experiences';
 
 export function ProtectedDemoShell({
   activePath,
   children,
+  experienceId = 'messy-notes',
 }: Readonly<{
   activePath: 'workspace' | 'about';
   children: ReactNode;
+  experienceId?: ExperienceId;
 }>) {
   const router = useRouter();
 
   function handleSignOut() {
-    clearStoredAccessToken();
+    clearStoredAccessToken(experienceId);
     router.replace('/');
   }
 

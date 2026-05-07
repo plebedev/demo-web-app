@@ -13,9 +13,11 @@ import { ACCESS_TOKEN_STORAGE_KEY } from '@/lib/access-token';
 import * as accessTokenLib from '@/lib/access-token';
 
 const replaceMock = vi.fn();
+const pushMock = vi.fn();
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
+    push: pushMock,
     replace: replaceMock,
   }),
 }));
@@ -24,6 +26,7 @@ describe('DemoExperience', () => {
   beforeEach(() => {
     window.localStorage.clear();
     vi.restoreAllMocks();
+    pushMock.mockReset();
     replaceMock.mockReset();
   });
 
@@ -52,6 +55,8 @@ describe('DemoExperience', () => {
           return new Response(
             JSON.stringify({
               access_token: 'signed-token',
+              experience_id: 'messy-notes',
+              redirect_path: '/messy-notes',
               expires_at: '2026-12-31T00:00:00Z',
             }),
             {
@@ -70,7 +75,7 @@ describe('DemoExperience', () => {
     fireEvent.change(await screen.findByLabelText('Invitation code'), {
       target: { value: 'demo-code' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Continue to demo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     await waitFor(() => {
       expect(replaceMock).toHaveBeenCalledWith('/messy-notes');
@@ -79,6 +84,7 @@ describe('DemoExperience', () => {
     await waitFor(() => {
       expect(persistSpy).toHaveBeenCalledWith({
         accessToken: 'signed-token',
+        experienceId: 'messy-notes',
         expiresAt: '2026-12-31T00:00:00Z',
       });
     });
@@ -113,9 +119,8 @@ describe('DemoExperience', () => {
       await screen.findByRole('button', { name: 'Request invite' }),
     );
     expect(
-      screen.getByRole('dialog', { name: 'Request an invite' }),
+      screen.getByRole('dialog', { name: 'Request Messy Notes' }),
     ).toBeInTheDocument();
-    expect(screen.getAllByText('Required')).toHaveLength(3);
     fireEvent.change(screen.getByLabelText('Name'), {
       target: { value: 'Ada Lovelace' },
     });
@@ -138,6 +143,11 @@ describe('DemoExperience', () => {
       '/api/bff/access/invite-requests',
       expect.objectContaining({ method: 'POST' }),
     );
+    const inviteRequestCall = (
+      fetchMock.mock.calls as [RequestInfo | URL, RequestInit?][]
+    ).find(([url]) => String(url).endsWith('/api/bff/access/invite-requests'));
+    const requestBody = JSON.parse(inviteRequestCall?.[1]?.body as string);
+    expect(requestBody.experience_id).toBe('messy-notes');
   });
 
   it('shows an invite request validation error', async () => {
@@ -183,8 +193,11 @@ describe('DemoExperience', () => {
     window.localStorage.setItem(
       ACCESS_TOKEN_STORAGE_KEY,
       JSON.stringify({
-        accessToken: 'expired-token',
-        expiresAt: '2026-12-31T00:00:00Z',
+        'messy-notes': {
+          accessToken: 'expired-token',
+          experienceId: 'messy-notes',
+          expiresAt: '2026-12-31T00:00:00Z',
+        },
       }),
     );
 
@@ -210,9 +223,7 @@ describe('DemoExperience', () => {
     render(<DemoExperience />);
 
     expect(
-      await screen.findByText(
-        'Your invitation session expired or is no longer valid.',
-      ),
+      await screen.findByText('Enter invitation code'),
     ).toBeInTheDocument();
 
     await waitFor(() => {
@@ -220,12 +231,15 @@ describe('DemoExperience', () => {
     });
   });
 
-  it('shows an explicit workspace link for a valid stored token', async () => {
+  it('shows an accessible experience dropdown for a valid stored token', async () => {
     window.localStorage.setItem(
       ACCESS_TOKEN_STORAGE_KEY,
       JSON.stringify({
-        accessToken: 'valid-token',
-        expiresAt: '2026-12-31T00:00:00Z',
+        'messy-notes': {
+          accessToken: 'valid-token',
+          experienceId: 'messy-notes',
+          expiresAt: '2026-12-31T00:00:00Z',
+        },
       }),
     );
 
@@ -236,7 +250,10 @@ describe('DemoExperience', () => {
 
         if (url.endsWith('/api/bff/access/verify')) {
           return new Response(
-            JSON.stringify({ expires_at: '2026-12-31T00:00:00Z' }),
+            JSON.stringify({
+              experience_id: 'messy-notes',
+              expires_at: '2026-12-31T00:00:00Z',
+            }),
             {
               status: 200,
               headers: { 'Content-Type': 'application/json' },
@@ -250,12 +267,13 @@ describe('DemoExperience', () => {
 
     render(<DemoExperience />);
 
-    expect(
-      await screen.findByText('Signed access is active'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('link', { name: 'Open messy notes' }),
-    ).toHaveAttribute('href', '/messy-notes');
+    expect(await screen.findByText('Go to an experience')).toBeInTheDocument();
+    expect(screen.getAllByLabelText('Experience')[0]).toHaveValue(
+      'messy-notes',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Go' }));
+
+    expect(pushMock).toHaveBeenCalledWith('/messy-notes');
     expect(replaceMock).not.toHaveBeenCalled();
   });
 });

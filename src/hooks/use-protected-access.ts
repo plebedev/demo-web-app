@@ -8,18 +8,20 @@ import {
   persistAccessToken,
   readStoredAccessToken,
 } from '@/lib/access-token';
+import { ExperienceId } from '@/lib/experiences';
 
 type VerificationPayload = {
+  experience_id: ExperienceId;
   expires_at: string;
 };
 
-export function useProtectedAccess() {
+export function useProtectedAccess(experienceId: ExperienceId) {
   const router = useRouter();
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    const storedToken = readStoredAccessToken();
+    const storedToken = readStoredAccessToken(experienceId);
     if (!storedToken) {
       router.replace('/');
       setIsChecking(false);
@@ -43,12 +45,16 @@ export function useProtectedAccess() {
         }
 
         const payload = (await response.json()) as VerificationPayload;
+        if (payload.experience_id !== experienceId) {
+          throw new Error('Stored access token is for another experience.');
+        }
         if (!active) {
           return;
         }
 
         persistAccessToken({
           accessToken: storedAccessToken,
+          experienceId,
           expiresAt: payload.expires_at,
         });
         setAccessToken(storedAccessToken);
@@ -58,7 +64,7 @@ export function useProtectedAccess() {
           return;
         }
 
-        clearStoredAccessToken();
+        clearStoredAccessToken(experienceId);
         setAccessToken(null);
         setIsChecking(false);
         router.replace('/');
@@ -70,7 +76,7 @@ export function useProtectedAccess() {
     return () => {
       active = false;
     };
-  }, [router]);
+  }, [experienceId, router]);
 
   return {
     accessToken,
