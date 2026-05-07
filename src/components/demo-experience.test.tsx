@@ -276,4 +276,44 @@ describe('DemoExperience', () => {
     expect(pushMock).toHaveBeenCalledWith('/messy-notes');
     expect(replaceMock).not.toHaveBeenCalled();
   });
+
+  it('keeps a stored token when verification is temporarily unavailable', async () => {
+    window.localStorage.setItem(
+      ACCESS_TOKEN_STORAGE_KEY,
+      JSON.stringify({
+        'messy-notes': {
+          accessToken: 'valid-token',
+          experienceId: 'messy-notes',
+          expiresAt: '2026-12-31T00:00:00Z',
+        },
+      }),
+    );
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+
+        if (url.endsWith('/api/bff/access/verify')) {
+          return new Response(
+            JSON.stringify({ detail: 'Backend unavailable.' }),
+            {
+              status: 503,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
+        }
+
+        throw new Error(`Unexpected fetch URL: ${url}`);
+      }),
+    );
+
+    render(<DemoExperience />);
+
+    expect(await screen.findByText('Go to an experience')).toBeInTheDocument();
+    expect(
+      window.localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY),
+    ).not.toBeNull();
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
 });

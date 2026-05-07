@@ -80,3 +80,7 @@ export function clearAllStoredAccessTokens(): void {
   window.localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
   window.localStorage.removeItem(LEGACY_ACCESS_TOKEN_STORAGE_KEY);
 }
+
+export function isHardAccessVerificationFailure(status: number): boolean {
+  return status === 401 || status === 403;
+}

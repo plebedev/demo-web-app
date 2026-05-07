@@ -8,7 +8,7 @@ import {
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { RagComingSoon } from '@/components/rag-coming-soon';
+import { RagWorkspace } from '@/components/rag-workspace';
 
 const replaceMock = vi.fn();
 
@@ -25,7 +25,7 @@ vi.mock('@/hooks/use-protected-access', () => ({
   }),
 }));
 
-describe('RagComingSoon', () => {
+describe('RagWorkspace', () => {
   beforeEach(() => {
     replaceMock.mockReset();
     vi.restoreAllMocks();
@@ -50,7 +50,7 @@ describe('RagComingSoon', () => {
       }),
     );
 
-    render(<RagComingSoon />);
+    render(<RagWorkspace />);
 
     expect(
       await screen.findByText('Configure assistant personas.'),
@@ -86,8 +86,9 @@ describe('RagComingSoon', () => {
             JSON.stringify({
               id: 11,
               name: 'Policy Helper',
-              instructions: 'Answer from uploaded policy documents.',
-              capabilities: 'Policy lookup',
+              instructions:
+                '# Rules\n- Answer from **uploaded** policy documents.',
+              capabilities: 'Use `policy` lookup',
               tool_config: null,
               is_active: true,
               created_at: '2026-05-07T00:00:00Z',
@@ -144,21 +145,26 @@ describe('RagComingSoon', () => {
     );
     vi.stubGlobal('fetch', fetchMock);
 
-    render(<RagComingSoon />);
+    render(<RagWorkspace />);
 
     fireEvent.change(await screen.findByLabelText('Name'), {
       target: { value: 'Policy Helper' },
     });
     fireEvent.change(screen.getByLabelText('Instructions'), {
-      target: { value: 'Answer from uploaded policy documents.' },
+      target: {
+        value: '# Rules\n- Answer from **uploaded** policy documents.',
+      },
     });
     fireEvent.change(screen.getByLabelText('Capabilities'), {
-      target: { value: 'Policy lookup' },
+      target: { value: 'Use `policy` lookup' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Save persona' }));
 
     expect(await screen.findByText('Persona saved.')).toBeInTheDocument();
     expect(screen.getByText('Policy Helper')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Rules' })).toBeInTheDocument();
+    expect(screen.getByText('uploaded')).toBeInTheDocument();
+    expect(screen.getByText('policy')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Name'), {
       target: { value: 'Policy Specialist' },
@@ -274,7 +280,7 @@ describe('RagComingSoon', () => {
     );
     vi.stubGlobal('fetch', fetchMock);
 
-    render(<RagComingSoon />);
+    render(<RagWorkspace />);
 
     expect(await screen.findByText('Policy Helper')).toBeInTheDocument();
     expect(

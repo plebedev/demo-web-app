@@ -1,7 +1,7 @@
-import { RagComingSoon } from '@/components/rag-coming-soon';
+import { RagWorkspace } from '@/components/rag-workspace';
 
 export const dynamic = 'force-dynamic';
 
 export default function RagDemoPage() {
-  return <RagComingSoon />;
+  return <RagWorkspace />;
 }

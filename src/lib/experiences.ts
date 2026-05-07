@@ -29,7 +29,7 @@ export const fallbackExperiences: Experience[] = [
     id: 'rag-demo',
     label: 'RAG Demo',
     description:
-      'A retrieval-grounded demo experience. The protected page is available now; the full workflow is coming soon.',
+      'A retrieval-grounded demo workspace with persona configuration and scoped document setup.',
     route: '/rag-demo',
     available: true,
     invite_request_available: true,

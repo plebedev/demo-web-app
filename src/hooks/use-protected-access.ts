@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import {
   clearStoredAccessToken,
+  isHardAccessVerificationFailure,
   persistAccessToken,
   readStoredAccessToken,
 } from '@/lib/access-token';
@@ -31,6 +32,24 @@ export function useProtectedAccess(experienceId: ExperienceId) {
 
     let active = true;
 
+    function keepStoredTokenForTransientFailure() {
+      if (!active) {
+        return;
+      }
+      setAccessToken(storedAccessToken);
+      setIsChecking(false);
+    }
+
+    function clearStoredTokenForHardFailure() {
+      if (!active) {
+        return;
+      }
+      clearStoredAccessToken(experienceId);
+      setAccessToken(null);
+      setIsChecking(false);
+      router.replace('/');
+    }
+
     async function verifyToken() {
       try {
         const response = await fetch('/api/bff/access/verify', {
@@ -41,12 +60,18 @@ export function useProtectedAccess(experienceId: ExperienceId) {
         });
 
         if (!response.ok) {
-          throw new Error('Stored access token is no longer valid.');
+          if (isHardAccessVerificationFailure(response.status)) {
+            clearStoredTokenForHardFailure();
+            return;
+          }
+          keepStoredTokenForTransientFailure();
+          return;
         }
 
         const payload = (await response.json()) as VerificationPayload;
         if (payload.experience_id !== experienceId) {
-          throw new Error('Stored access token is for another experience.');
+          clearStoredTokenForHardFailure();
+          return;
         }
         if (!active) {
           return;
@@ -60,14 +85,7 @@ export function useProtectedAccess(experienceId: ExperienceId) {
         setAccessToken(storedAccessToken);
         setIsChecking(false);
       } catch {
-        if (!active) {
-          return;
-        }
-
-        clearStoredAccessToken(experienceId);
-        setAccessToken(null);
-        setIsChecking(false);
-        router.replace('/');
+        keepStoredTokenForTransientFailure();
       }
     }
 

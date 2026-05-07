@@ -1,6 +1,13 @@
 'use client';
 
-import React, { FormEvent, useEffect, useMemo, useState } from 'react';
+import React, {
+  FormEvent,
+  ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -70,9 +77,107 @@ function authHeaders(accessToken: string): HeadersInit {
   };
 }
 
-export function RagComingSoon() {
+function renderInlineMarkdown(text: string): ReactNode[] {
+  const pattern = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\(https?:\/\/[^)]+\))/g;
+  const nodes: ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      nodes.push(text.slice(lastIndex, match.index));
+    }
+    const token = match[0];
+    const key = `${match.index}-${token}`;
+    if (token.startsWith('**')) {
+      nodes.push(<strong key={key}>{token.slice(2, -2)}</strong>);
+    } else if (token.startsWith('`')) {
+      nodes.push(<code key={key}>{token.slice(1, -1)}</code>);
+    } else {
+      const linkMatch = token.match(/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/);
+      if (linkMatch) {
+        nodes.push(
+          <a href={linkMatch[2]} key={key} rel="noreferrer" target="_blank">
+            {linkMatch[1]}
+          </a>,
+        );
+      } else {
+        nodes.push(token);
+      }
+    }
+    lastIndex = match.index + token.length;
+  }
+
+  if (lastIndex < text.length) {
+    nodes.push(text.slice(lastIndex));
+  }
+  return nodes;
+}
+
+function MarkdownPreview({ value }: { value: string }) {
+  const lines = value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length === 0) {
+    return null;
+  }
+
+  const blocks: ReactNode[] = [];
+  let listItems: string[] = [];
+
+  function flushList() {
+    if (listItems.length === 0) {
+      return;
+    }
+    const items = listItems;
+    listItems = [];
+    blocks.push(
+      <ul key={`list-${blocks.length}`}>
+        {items.map((item, index) => (
+          <li key={`${index}-${item}`}>{renderInlineMarkdown(item)}</li>
+        ))}
+      </ul>,
+    );
+  }
+
+  lines.forEach((line) => {
+    const listMatch = line.match(/^[-*]\s+(.+)$/);
+    if (listMatch) {
+      listItems.push(listMatch[1]);
+      return;
+    }
+    flushList();
+
+    const headingMatch = line.match(/^(#{1,3})\s+(.+)$/);
+    if (headingMatch) {
+      const HeadingTag =
+        headingMatch[1].length === 1
+          ? 'h4'
+          : headingMatch[1].length === 2
+            ? 'h5'
+            : 'h6';
+      blocks.push(
+        <HeadingTag key={`heading-${blocks.length}`}>
+          {renderInlineMarkdown(headingMatch[2])}
+        </HeadingTag>,
+      );
+      return;
+    }
+
+    blocks.push(
+      <p key={`paragraph-${blocks.length}`}>{renderInlineMarkdown(line)}</p>,
+    );
+  });
+  flushList();
+
+  return <div className="markdown-preview">{blocks}</div>;
+}
+
+export function RagWorkspace() {
   const router = useRouter();
   const { accessToken, isChecking } = useProtectedAccess('rag-demo');
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [activeTab, setActiveTab] = useState<RagTab>('configuration');
   const [personas, setPersonas] = useState<RagPersona[]>([]);
   const [selectedPersonaId, setSelectedPersonaId] = useState<number | null>(
@@ -374,6 +479,9 @@ export function RagComingSoon() {
         return [uploadedDocument, ...withoutExisting];
       });
       setDocumentForm(emptyDocumentForm);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       setNotice(
         payload.reused_existing_document
           ? 'Existing document linked to persona.'
@@ -582,6 +690,7 @@ export function RagComingSoon() {
                   rows={5}
                   value={form.instructions}
                 />
+                <MarkdownPreview value={form.instructions} />
                 <label
                   className="field-label"
                   htmlFor="rag-persona-capabilities"
@@ -601,6 +710,7 @@ export function RagComingSoon() {
                   rows={4}
                   value={form.capabilities}
                 />
+                <MarkdownPreview value={form.capabilities} />
                 <div className="workspace-toolbar">
                   <button
                     className="primary-button"
@@ -693,6 +803,7 @@ export function RagComingSoon() {
                           file: event.target.files?.[0] || null,
                         }))
                       }
+                      ref={fileInputRef}
                       type="file"
                     />
                     <button

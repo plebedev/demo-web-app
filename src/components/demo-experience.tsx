@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation';
 
 import {
   clearStoredAccessToken,
+  isHardAccessVerificationFailure,
   persistAccessToken,
   readStoredAccessTokens,
   StoredAccessToken,
@@ -141,14 +142,17 @@ export function DemoExperience() {
                 },
               });
               if (!response.ok) {
-                throw new Error('Stored access token is no longer valid.');
+                if (isHardAccessVerificationFailure(response.status)) {
+                  clearStoredAccessToken(experienceId as ExperienceId);
+                  return null;
+                }
+                return [experienceId as ExperienceId, storedToken] as const;
               }
               const payload =
                 (await response.json()) as AccessVerificationPayload;
               if (payload.experience_id !== experienceId) {
-                throw new Error(
-                  'Stored access token is for another experience.',
-                );
+                clearStoredAccessToken(experienceId as ExperienceId);
+                return null;
               }
               persistAccessToken({
                 accessToken: storedToken.accessToken,
@@ -157,8 +161,7 @@ export function DemoExperience() {
               });
               return [payload.experience_id, storedToken] as const;
             } catch {
-              clearStoredAccessToken(experienceId as ExperienceId);
-              return null;
+              return [experienceId as ExperienceId, storedToken] as const;
             }
           },
         ),
