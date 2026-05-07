@@ -110,8 +110,13 @@ recent execution events, and the post-run audit summary.
 The protected `/messy-notes` workspace now includes curated backend-loaded
 sample chaos sets, stronger sticky-note board styling, optional SMS preference
 capture, and one guarded follow-up after a brief is complete. Notification
-sending is not performed by an agent; the UI stores preference through the
-backend for a future coded completion path.
+sending is not performed by an agent; the backend validates US phone numbers,
+checks permanent opt-out status, and sends completion texts through Twilio from
+coded run-completion behavior. The UI shows when a number is on the permanent
+opt-out list, prevents enabling SMS for that number, and saves changed SMS
+preferences automatically when the user saves a draft or submits a run. The SMS
+controls are hidden unless the backend status response returns
+`features.SmsNotification: true`.
 
 Frontend coverage for sample loading, sticky-note rendering, notification
 preference UI, and follow-up state is included in:

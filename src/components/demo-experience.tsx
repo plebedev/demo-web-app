@@ -289,6 +289,8 @@ function ShellFrame({
           <a href="#infrastructure">Infrastructure</a>
           <a href="#architecture">Architecture</a>
           <a href="#features">Features</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
         </nav>
 
         <p className="topbar-status">
