@@ -46,6 +46,12 @@ describe('RagWorkspace', () => {
             headers: { 'Content-Type': 'application/json' },
           });
         }
+        if (url.endsWith('/api/bff/rag/conversations')) {
+          return new Response(JSON.stringify({ conversations: [] }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
         throw new Error(`Unexpected fetch URL: ${url}`);
       }),
     );
@@ -56,13 +62,13 @@ describe('RagWorkspace', () => {
       await screen.findByText('Configure assistant personas.'),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText('Chat is not wired yet.'),
+      screen.queryByText('Ask a persona-grounded question.'),
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Chat' }));
 
     expect(
-      await screen.findByText('Chat is not wired yet.'),
+      await screen.findByText('Ask a persona-grounded question.'),
     ).toBeInTheDocument();
     expect(
       screen.queryByText('Configure assistant personas.'),
@@ -76,6 +82,13 @@ describe('RagWorkspace', () => {
 
         if (url.endsWith('/api/bff/rag/personas') && !init?.method) {
           return new Response(JSON.stringify({ personas: [] }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
+        if (url.endsWith('/api/bff/rag/conversations') && !init?.method) {
+          return new Response(JSON.stringify({ conversations: [] }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
           });
@@ -228,6 +241,13 @@ describe('RagWorkspace', () => {
           );
         }
 
+        if (url.endsWith('/api/bff/rag/conversations') && !init?.method) {
+          return new Response(JSON.stringify({ conversations: [] }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
         if (
           url.endsWith('/api/bff/rag/personas/21/documents') &&
           !init?.method
@@ -317,6 +337,177 @@ describe('RagWorkspace', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/bff/rag/personas/21/documents/31',
       expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+
+  it('creates a chat conversation and sends a message with citations', async () => {
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+
+        if (url.endsWith('/api/bff/rag/personas') && !init?.method) {
+          return new Response(
+            JSON.stringify({
+              personas: [
+                {
+                  id: 41,
+                  name: 'Policy Helper',
+                  instructions: 'Answer from uploaded policy documents.',
+                  capabilities: 'Policy lookup',
+                  tool_config: null,
+                  is_active: true,
+                  created_at: '2026-05-07T00:00:00Z',
+                  updated_at: '2026-05-07T00:00:00Z',
+                },
+              ],
+            }),
+            {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
+        }
+
+        if (url.endsWith('/api/bff/rag/conversations') && !init?.method) {
+          return new Response(JSON.stringify({ conversations: [] }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
+        if (
+          url.endsWith('/api/bff/rag/personas/41/documents') &&
+          !init?.method
+        ) {
+          return new Response(JSON.stringify({ documents: [] }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
+        if (
+          url.endsWith('/api/bff/rag/conversations') &&
+          init?.method === 'POST'
+        ) {
+          return new Response(
+            JSON.stringify({
+              id: 51,
+              persona_id: 41,
+              persona_name: 'Policy Helper',
+              title: 'Policy Helper chat',
+              status: 'active',
+              created_at: '2026-05-07T00:00:00Z',
+              updated_at: '2026-05-07T00:00:00Z',
+            }),
+            {
+              status: 201,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
+        }
+
+        if (url.endsWith('/api/bff/rag/conversations/51') && !init?.method) {
+          return new Response(
+            JSON.stringify({
+              conversation: {
+                id: 51,
+                persona_id: 41,
+                persona_name: 'Policy Helper',
+                title: 'Policy Helper chat',
+                status: 'active',
+                created_at: '2026-05-07T00:00:00Z',
+                updated_at: '2026-05-07T00:00:00Z',
+              },
+              messages: [],
+            }),
+            {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
+        }
+
+        if (
+          url.endsWith('/api/bff/rag/conversations/51/messages') &&
+          init?.method === 'POST'
+        ) {
+          return new Response(
+            JSON.stringify({
+              user_message: {
+                id: 61,
+                role: 'user',
+                content: 'What does the policy say?',
+                turn_index: 0,
+                metadata: null,
+                created_at: '2026-05-07T00:01:00Z',
+              },
+              assistant_message: {
+                id: 62,
+                role: 'assistant',
+                content: 'Grounded answer with **evidence**.',
+                turn_index: 1,
+                metadata: '{}',
+                created_at: '2026-05-07T00:01:01Z',
+              },
+              citations: [
+                {
+                  id: 71,
+                  message_id: 62,
+                  document_id: 31,
+                  chunk_id: 81,
+                  chunk_index: 0,
+                  source: 'policy.txt',
+                  title: 'Policy',
+                  snippet: 'alpha renewal policy context',
+                  rank: 1,
+                },
+              ],
+              turns_remaining: 9,
+            }),
+            {
+              status: 201,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
+        }
+
+        throw new Error(`Unexpected fetch URL: ${url}`);
+      },
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<RagWorkspace />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Chat' }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Assistant')).toHaveValue('41');
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'New chat' }));
+
+    expect(
+      await screen.findByText('Ask the first question for this persona.'),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Message'), {
+      target: { value: 'What does the policy say?' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    expect(await screen.findByText(/Grounded answer with/)).toBeInTheDocument();
+    expect(screen.getByText('evidence')).toBeInTheDocument();
+    expect(screen.getByText('9 turns left')).toBeInTheDocument();
+    expect(screen.getByText('Policy')).toBeInTheDocument();
+    expect(
+      screen.getByText('alpha renewal policy context'),
+    ).toBeInTheDocument();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/bff/rag/conversations',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/bff/rag/conversations/51/messages',
+      expect.objectContaining({ method: 'POST' }),
     );
   });
 });

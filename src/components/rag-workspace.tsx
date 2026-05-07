@@ -44,6 +44,53 @@ type PersonaDocumentListResponse = {
   documents: RagPersonaDocument[];
 };
 
+type RagConversation = {
+  id: number;
+  persona_id: number | null;
+  persona_name: string | null;
+  title: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type RagMessage = {
+  id: number;
+  role: 'user' | 'assistant' | string;
+  content: string;
+  turn_index: number;
+  metadata: string | null;
+  created_at: string;
+};
+
+type RagCitation = {
+  id: number;
+  message_id: number;
+  document_id: number;
+  chunk_id: number;
+  chunk_index: number;
+  source: string;
+  title: string | null;
+  snippet: string;
+  rank: number;
+};
+
+type ConversationListResponse = {
+  conversations: RagConversation[];
+};
+
+type ConversationDetailResponse = {
+  conversation: RagConversation;
+  messages: RagMessage[];
+};
+
+type ConversationMessageResponse = {
+  user_message: RagMessage;
+  assistant_message: RagMessage;
+  citations: RagCitation[];
+  turns_remaining: number;
+};
+
 type PersonaFormState = {
   name: string;
   instructions: string;
@@ -183,20 +230,45 @@ export function RagWorkspace() {
   const [selectedPersonaId, setSelectedPersonaId] = useState<number | null>(
     null,
   );
+  const [chatPersonaId, setChatPersonaId] = useState<number | null>(null);
+  const [selectedConversationId, setSelectedConversationId] = useState<
+    number | null
+  >(null);
   const [form, setForm] = useState<PersonaFormState>(emptyPersonaForm);
   const [documents, setDocuments] = useState<RagPersonaDocument[]>([]);
+  const [conversations, setConversations] = useState<RagConversation[]>([]);
+  const [messages, setMessages] = useState<RagMessage[]>([]);
+  const [citationsByMessageId, setCitationsByMessageId] = useState<
+    Record<number, RagCitation[]>
+  >({});
   const [documentForm, setDocumentForm] =
     useState<DocumentFormState>(emptyDocumentForm);
+  const [chatInput, setChatInput] = useState('');
   const [isLoadingPersonas, setIsLoadingPersonas] = useState(false);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
+  const [isLoadingConversations, setIsLoadingConversations] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSavingPersona, setIsSavingPersona] = useState(false);
   const [isUploadingDocument, setIsUploadingDocument] = useState(false);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [turnsRemaining, setTurnsRemaining] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const selectedPersona = useMemo(
     () => personas.find((persona) => persona.id === selectedPersonaId) || null,
     [personas, selectedPersonaId],
+  );
+  const chatPersona = useMemo(
+    () => personas.find((persona) => persona.id === chatPersonaId) || null,
+    [chatPersonaId, personas],
+  );
+  const selectedConversation = useMemo(
+    () =>
+      conversations.find(
+        (conversation) => conversation.id === selectedConversationId,
+      ) || null,
+    [conversations, selectedConversationId],
   );
 
   useEffect(() => {
@@ -230,6 +302,15 @@ export function RagWorkspace() {
           }
           return payload.personas[0]?.id || null;
         });
+        setChatPersonaId((current) => {
+          if (
+            current !== null &&
+            payload.personas.some((persona) => persona.id === current)
+          ) {
+            return current;
+          }
+          return payload.personas[0]?.id || null;
+        });
         setError(null);
       } catch (loadError) {
         if (!active) {
@@ -248,6 +329,62 @@ export function RagWorkspace() {
     }
 
     void loadPersonas();
+
+    return () => {
+      active = false;
+    };
+  }, [accessToken]);
+
+  useEffect(() => {
+    if (!accessToken) {
+      return;
+    }
+    let active = true;
+    const token = accessToken;
+
+    async function loadConversations() {
+      setIsLoadingConversations(true);
+      try {
+        const response = await fetch('/api/bff/rag/conversations', {
+          cache: 'no-store',
+          headers: authHeaders(token),
+        });
+        if (!response.ok) {
+          throw new Error('Unable to load conversations.');
+        }
+        const payload = (await response.json()) as ConversationListResponse;
+        if (!active) {
+          return;
+        }
+        setConversations(payload.conversations);
+        setSelectedConversationId((current) => {
+          if (
+            current !== null &&
+            payload.conversations.some(
+              (conversation) => conversation.id === current,
+            )
+          ) {
+            return current;
+          }
+          return payload.conversations[0]?.id || null;
+        });
+      } catch (loadError) {
+        if (!active) {
+          return;
+        }
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : 'Unable to load conversations.',
+        );
+      } finally {
+        if (active) {
+          setIsLoadingConversations(false);
+        }
+      }
+    }
+
+    void loadConversations();
 
     return () => {
       active = false;
@@ -315,6 +452,73 @@ export function RagWorkspace() {
       active = false;
     };
   }, [accessToken, selectedPersonaId]);
+
+  useEffect(() => {
+    if (!accessToken || selectedConversationId === null) {
+      setMessages([]);
+      setCitationsByMessageId({});
+      setTurnsRemaining(null);
+      return;
+    }
+    let active = true;
+    const token = accessToken;
+    const conversationId = selectedConversationId;
+
+    async function loadConversationMessages() {
+      setIsLoadingMessages(true);
+      try {
+        const response = await fetch(
+          `/api/bff/rag/conversations/${conversationId}`,
+          {
+            cache: 'no-store',
+            headers: authHeaders(token),
+          },
+        );
+        if (!response.ok) {
+          throw new Error('Unable to load conversation.');
+        }
+        const payload = (await response.json()) as ConversationDetailResponse;
+        if (!active) {
+          return;
+        }
+        setMessages(payload.messages);
+        setCitationsByMessageId({});
+        const userTurns = payload.messages.filter(
+          (message) => message.role === 'user',
+        ).length;
+        setTurnsRemaining(Math.max(0, 10 - userTurns));
+        setConversations((current) =>
+          current.map((conversation) =>
+            conversation.id === payload.conversation.id
+              ? payload.conversation
+              : conversation,
+          ),
+        );
+        if (payload.conversation.persona_id !== null) {
+          setChatPersonaId(payload.conversation.persona_id);
+        }
+      } catch (loadError) {
+        if (!active) {
+          return;
+        }
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : 'Unable to load conversation.',
+        );
+      } finally {
+        if (active) {
+          setIsLoadingMessages(false);
+        }
+      }
+    }
+
+    void loadConversationMessages();
+
+    return () => {
+      active = false;
+    };
+  }, [accessToken, selectedConversationId]);
 
   function handleSignOut() {
     clearStoredAccessToken('rag-demo');
@@ -529,6 +733,104 @@ export function RagWorkspace() {
     }
   }
 
+  async function handleCreateConversation() {
+    if (!accessToken || chatPersonaId === null) {
+      return;
+    }
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await fetch('/api/bff/rag/conversations', {
+        method: 'POST',
+        headers: authHeaders(accessToken),
+        body: JSON.stringify({
+          persona_id: chatPersonaId,
+          title: chatPersona ? `${chatPersona.name} chat` : 'RAG conversation',
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | (RagConversation & { detail?: string })
+        | null;
+      if (!response.ok || payload === null) {
+        throw new Error(
+          typeof payload?.detail === 'string'
+            ? payload.detail
+            : 'Unable to create conversation.',
+        );
+      }
+      setConversations((current) => [payload, ...current]);
+      setSelectedConversationId(payload.id);
+      setMessages([]);
+      setCitationsByMessageId({});
+      setTurnsRemaining(10);
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : 'Unable to create conversation.',
+      );
+    }
+  }
+
+  async function handleChatSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken || selectedConversationId === null || !chatInput.trim()) {
+      return;
+    }
+    setIsSendingMessage(true);
+    setError(null);
+    setNotice(null);
+
+    const content = chatInput.trim();
+    try {
+      const response = await fetch(
+        `/api/bff/rag/conversations/${selectedConversationId}/messages`,
+        {
+          method: 'POST',
+          headers: authHeaders(accessToken),
+          body: JSON.stringify({ content }),
+        },
+      );
+      const payload = (await response.json().catch(() => null)) as
+        | (ConversationMessageResponse & { detail?: string })
+        | null;
+      if (!response.ok || payload === null) {
+        throw new Error(
+          typeof payload?.detail === 'string'
+            ? payload.detail
+            : 'Unable to send message.',
+        );
+      }
+      setMessages((current) => [
+        ...current,
+        payload.user_message,
+        payload.assistant_message,
+      ]);
+      setCitationsByMessageId((current) => ({
+        ...current,
+        [payload.assistant_message.id]: payload.citations,
+      }));
+      setTurnsRemaining(payload.turns_remaining);
+      setChatInput('');
+      setConversations((current) =>
+        current.map((conversation) =>
+          conversation.id === selectedConversationId
+            ? { ...conversation, updated_at: new Date().toISOString() }
+            : conversation,
+        ),
+      );
+    } catch (sendError) {
+      setError(
+        sendError instanceof Error
+          ? sendError.message
+          : 'Unable to send message.',
+      );
+    } finally {
+      setIsSendingMessage(false);
+    }
+  }
+
   return (
     <main className="shell shell--workspace">
       <header className="topbar topbar--workspace">
@@ -582,12 +884,181 @@ export function RagWorkspace() {
         <section className="section-grid">
           <div className="section-heading">
             <p className="eyebrow">Chat</p>
-            <h2>Chat is not wired yet.</h2>
+            <h2>Ask a persona-grounded question.</h2>
             <p className="lede lede--compact">
-              This milestone establishes tenant-scoped personas and storage
-              boundaries first. The chat turn execution, retrieval, citations,
-              artifacts, and PDF export come after that foundation is verified.
+              Conversations use the selected persona and retrieve only from
+              documents linked to that persona.
             </p>
+          </div>
+
+          {error ? <p className="error-text">{error}</p> : null}
+          {notice ? <p className="success-text">{notice}</p> : null}
+
+          <div className="rag-chat-grid">
+            <section className="section-card rag-chat-sidebar">
+              <p className="card-kicker">Persona</p>
+              {personas.length === 0 ? (
+                <p className="section-detail">
+                  Create a persona in Configuration before starting a chat.
+                </p>
+              ) : (
+                <>
+                  <label className="field-label" htmlFor="rag-chat-persona">
+                    Assistant
+                  </label>
+                  <select
+                    className="select-input"
+                    disabled={isLoadingPersonas}
+                    id="rag-chat-persona"
+                    onChange={(event) =>
+                      setChatPersonaId(Number(event.target.value))
+                    }
+                    value={chatPersonaId || ''}
+                  >
+                    {personas.map((persona) => (
+                      <option key={persona.id} value={persona.id}>
+                        {persona.name}
+                      </option>
+                    ))}
+                  </select>
+                  {chatPersona?.capabilities ? (
+                    <MarkdownPreview value={chatPersona.capabilities} />
+                  ) : null}
+                  <button
+                    className="primary-button"
+                    disabled={chatPersonaId === null}
+                    onClick={() => void handleCreateConversation()}
+                    type="button"
+                  >
+                    New chat
+                  </button>
+                </>
+              )}
+
+              <div className="rag-conversation-list">
+                <p className="card-kicker">Conversations</p>
+                {isLoadingConversations ? (
+                  <p className="section-detail">Loading conversations.</p>
+                ) : conversations.length === 0 ? (
+                  <p className="section-detail">No conversations yet.</p>
+                ) : (
+                  conversations.map((conversation) => (
+                    <button
+                      className={`rag-persona-list-item ${
+                        conversation.id === selectedConversationId
+                          ? 'rag-persona-list-item--active'
+                          : ''
+                      }`}
+                      key={conversation.id}
+                      onClick={() => setSelectedConversationId(conversation.id)}
+                      type="button"
+                    >
+                      <strong>{conversation.title || 'Untitled chat'}</strong>
+                      <span>
+                        {conversation.persona_name || 'No persona'} ·{' '}
+                        {conversation.status}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </section>
+
+            <section className="section-card rag-chat-panel">
+              <div className="run-card-row">
+                <div>
+                  <p className="card-kicker">Conversation</p>
+                  <h3>
+                    {selectedConversation?.title ||
+                      chatPersona?.name ||
+                      'RAG chat'}
+                  </h3>
+                </div>
+                {turnsRemaining !== null ? (
+                  <span className="status-pill">
+                    {turnsRemaining} turns left
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="rag-message-list">
+                {isLoadingMessages ? (
+                  <p className="section-detail">Loading messages.</p>
+                ) : selectedConversationId === null ? (
+                  <p className="section-detail">
+                    Start a new chat or select an existing conversation.
+                  </p>
+                ) : messages.length === 0 ? (
+                  <p className="section-detail">
+                    Ask the first question for this persona.
+                  </p>
+                ) : (
+                  messages.map((message) => (
+                    <article
+                      className={`rag-message rag-message--${message.role}`}
+                      key={message.id}
+                    >
+                      <p className="card-kicker">
+                        {message.role === 'user' ? 'You' : 'Assistant'}
+                      </p>
+                      {message.role === 'assistant' ? (
+                        <MarkdownPreview value={message.content} />
+                      ) : (
+                        <p>{message.content}</p>
+                      )}
+                      {citationsByMessageId[message.id]?.length ? (
+                        <div className="rag-citation-list">
+                          {citationsByMessageId[message.id].map((citation) => (
+                            <details key={citation.id}>
+                              <summary>
+                                {citation.title ||
+                                  citation.source ||
+                                  `Document ${citation.document_id}`}
+                              </summary>
+                              <p>{citation.snippet}</p>
+                              <span>
+                                {citation.source} · chunk {citation.chunk_index}
+                              </span>
+                            </details>
+                          ))}
+                        </div>
+                      ) : null}
+                    </article>
+                  ))
+                )}
+              </div>
+
+              <form className="invite-form" onSubmit={handleChatSubmit}>
+                <label className="field-label" htmlFor="rag-chat-input">
+                  Message
+                </label>
+                <textarea
+                  className="text-area text-area--compact"
+                  disabled={
+                    selectedConversationId === null ||
+                    isSendingMessage ||
+                    turnsRemaining === 0
+                  }
+                  id="rag-chat-input"
+                  onChange={(event) => setChatInput(event.target.value)}
+                  placeholder="Ask a question grounded in this persona's documents."
+                  rows={4}
+                  value={chatInput}
+                />
+                <button
+                  className="primary-button"
+                  disabled={
+                    selectedConversationId === null ||
+                    isSendingMessage ||
+                    turnsRemaining === 0 ||
+                    !chatInput.trim()
+                  }
+                  type="submit"
+                >
+                  {isSendingMessage ? 'Sending...' : 'Send'}
+                </button>
+              </form>
+            </section>
           </div>
         </section>
       ) : (
