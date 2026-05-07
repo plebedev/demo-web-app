@@ -19,7 +19,7 @@ function authHeaders(accessToken: string): HeadersInit {
 
 export function MessyNotesHome() {
   const router = useRouter();
-  const { accessToken, isChecking } = useProtectedAccess();
+  const { accessToken, isChecking } = useProtectedAccess('messy-notes');
   const [runs, setRuns] = useState<DemoRun[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);

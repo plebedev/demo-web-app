@@ -6,7 +6,7 @@ import { useProtectedAccess } from '@/hooks/use-protected-access';
 import { phase1DemoConfig } from '@/lib/phase1-demo';
 
 export function MessyNotesAbout() {
-  const { isChecking } = useProtectedAccess();
+  const { isChecking } = useProtectedAccess('messy-notes');
 
   if (isChecking) {
     return (

@@ -32,7 +32,7 @@ export function MessyNotesRunPage({
 }: Readonly<{
   runId: number;
 }>) {
-  const { accessToken, isChecking } = useProtectedAccess();
+  const { accessToken, isChecking } = useProtectedAccess('messy-notes');
   const [run, setRun] = useState<DemoRun | null>(null);
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [summary, setSummary] = useState<RunExecutionSummary | null>(null);

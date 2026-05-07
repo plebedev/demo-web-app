@@ -111,15 +111,21 @@ a {
   gap: 0.5rem;
 }
 
-.topnav a {
+.topnav a,
+.topnav button {
   padding: 0.55rem 0.85rem;
+  border: 0;
   border-radius: 999px;
   color: var(--muted);
+  font: inherit;
   font-size: 0.92rem;
   text-decoration: none;
+  background: transparent;
+  cursor: pointer;
 }
 
-.topnav a:hover {
+.topnav a:hover,
+.topnav button:hover {
   color: var(--accent-strong);
   background: var(--accent-soft);
 }
@@ -190,6 +196,12 @@ a {
   margin-bottom: 1.5rem;
 }
 
+.access-hub-hero {
+  grid-template-columns: minmax(0, 1fr) minmax(22rem, 0.6fr);
+  align-items: stretch;
+  margin-bottom: 0;
+}
+
 .hero-copy,
 .access-panel,
 .section-card,
@@ -205,6 +217,11 @@ a {
 .hero-copy {
   min-height: 100%;
   padding: 2rem;
+}
+
+.access-hub-intro,
+.access-hub-redeem {
+  padding: clamp(1.2rem, 2vw, 1.6rem);
 }
 
 .eyebrow,
@@ -227,12 +244,27 @@ a {
   letter-spacing: -0.05em;
 }
 
+.access-hub-intro h1 {
+  max-width: 18ch;
+  margin-top: 0.55rem;
+  font-size: clamp(2rem, 3vw, 2.55rem);
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+
 .lede {
   margin: 1.2rem 0 0;
   max-width: 40rem;
   color: var(--muted);
   font-size: 1.05rem;
   line-height: 1.75;
+}
+
+.access-hub-intro .lede {
+  max-width: 43rem;
+  margin-top: 0.75rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
 }
 
 .lede--compact {
@@ -247,6 +279,11 @@ a {
   margin-top: 1.4rem;
 }
 
+.access-hub-intro .hero-badges {
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+
 .hero-badges span {
   padding: 0.6rem 0.85rem;
   border: 1px solid rgba(29, 79, 128, 0.12);
@@ -256,9 +293,18 @@ a {
   background: rgba(255, 255, 255, 0.6);
 }
 
+.access-hub-intro .hero-badges span {
+  padding: 0.45rem 0.7rem;
+  font-size: 0.82rem;
+}
+
 .access-panel {
   padding: 1.5rem;
   background: var(--panel-strong);
+}
+
+.access-hub-redeem {
+  align-self: stretch;
 }
 
 .access-panel h2,
@@ -273,6 +319,11 @@ a {
   font-size: clamp(2rem, 3vw, 2.7rem);
 }
 
+.access-hub-redeem h2 {
+  font-size: clamp(1.65rem, 2.1vw, 2.1rem);
+  line-height: 1.12;
+}
+
 .section-detail,
 .status-detail,
 .access-note {
@@ -281,10 +332,17 @@ a {
   line-height: 1.7;
 }
 
+.access-hub-redeem .section-detail,
+.experience-action-card .section-detail {
+  margin-top: 0.65rem;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
 .invite-form {
   display: grid;
-  gap: 0.9rem;
-  margin-top: 1.3rem;
+  gap: 0.75rem;
+  margin-top: 1rem;
 }
 
 .invite-request-block {
@@ -346,7 +404,7 @@ a {
 
 .text-input {
   width: 100%;
-  padding: 1rem 1.05rem;
+  padding: 0.8rem 0.95rem;
   border: 1px solid rgba(29, 79, 128, 0.15);
   border-radius: 18px;
   color: var(--text);
@@ -360,7 +418,7 @@ a {
 
 .primary-button {
   width: fit-content;
-  padding: 0.95rem 1.25rem;
+  padding: 0.78rem 1.05rem;
   border: 0;
   border-radius: 999px;
   color: white;
@@ -388,7 +446,7 @@ a {
 .secondary-button,
 .ghost-button {
   width: fit-content;
-  padding: 0.95rem 1.25rem;
+  padding: 0.78rem 1.05rem;
   border-radius: 999px;
   font: inherit;
   cursor: pointer;
@@ -440,8 +498,28 @@ a {
 }
 
 .section-grid {
-  margin-top: 3rem;
+  margin-top: 2.2rem;
   scroll-margin-top: 7rem;
+}
+
+.access-hub-experiences {
+  margin-top: 1.6rem;
+}
+
+.access-hub-section-heading {
+  display: grid;
+  grid-template-columns: minmax(12rem, auto) minmax(0, 1fr);
+  align-items: end;
+  column-gap: 1.5rem;
+  row-gap: 0.4rem;
+}
+
+.access-hub-section-heading .eyebrow {
+  grid-column: 1 / -1;
+}
+
+.access-hub-section-heading .lede {
+  margin-top: 0;
 }
 
 .section-heading h2 {
@@ -450,6 +528,13 @@ a {
   font-family: 'Libre Baskerville', Georgia, serif;
   font-size: clamp(2rem, 4vw, 3rem);
   line-height: 1.05;
+}
+
+.access-hub-section-heading h2 {
+  max-width: none;
+  margin-top: 0;
+  font-size: clamp(1.65rem, 2.3vw, 2.05rem);
+  letter-spacing: 0;
 }
 
 .section-columns,
@@ -462,6 +547,40 @@ a {
 
 .section-columns {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.experience-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.experience-action-card {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.experience-control-row {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) auto;
+  align-items: end;
+  gap: 1rem;
+}
+
+.experience-control-row .field-label {
+  grid-column: 1 / -1;
+}
+
+.select-input {
+  width: 100%;
+  min-height: 2.9rem;
+  padding: 0 1rem;
+  border: 1px solid rgba(29, 79, 128, 0.15);
+  border-radius: 18px;
+  color: var(--text);
+  font: inherit;
+  background: rgba(255, 255, 255, 0.95);
 }
 
 .section-columns--triple {
@@ -571,6 +690,220 @@ a {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
   margin-top: 1.2rem;
+}
+
+.rag-config-grid {
+  display: grid;
+  grid-template-columns: minmax(16rem, 0.72fr) minmax(0, 1.28fr);
+  gap: 1rem;
+  margin-top: 1.2rem;
+}
+
+.rag-persona-list,
+.rag-documents-placeholder {
+  align-content: start;
+}
+
+.rag-persona-list-items {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.rag-persona-list-item {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.85rem;
+  border: 1px solid rgba(29, 79, 128, 0.12);
+  border-radius: 14px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.68);
+  cursor: pointer;
+}
+
+.rag-persona-list-item:hover,
+.rag-persona-list-item--active {
+  border-color: rgba(29, 79, 128, 0.25);
+  background: rgba(29, 79, 128, 0.08);
+}
+
+.rag-persona-list-item span {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.rag-documents-placeholder {
+  grid-column: 1 / -1;
+  border-style: dashed;
+  background: rgba(255, 252, 247, 0.62);
+}
+
+.rag-chat-grid {
+  display: grid;
+  grid-template-columns: minmax(17rem, 0.42fr) minmax(0, 1fr);
+  gap: 1rem;
+  margin-top: 1.2rem;
+}
+
+.rag-chat-sidebar,
+.rag-chat-panel {
+  align-content: start;
+}
+
+.rag-chat-sidebar {
+  display: grid;
+  gap: 1rem;
+}
+
+.rag-conversation-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.rag-chat-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.rag-message-list {
+  display: grid;
+  gap: 0.85rem;
+  max-height: 34rem;
+  overflow: auto;
+  padding-right: 0.25rem;
+}
+
+.rag-message {
+  display: grid;
+  gap: 0.45rem;
+  max-width: 86%;
+  padding: 0.85rem;
+  border: 1px solid rgba(29, 79, 128, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.rag-message--user {
+  justify-self: end;
+  background: rgba(29, 79, 128, 0.08);
+}
+
+.rag-message--assistant {
+  justify-self: start;
+}
+
+.rag-message > p {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.rag-citation-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.rag-citation-list details {
+  padding: 0.6rem 0.7rem;
+  border: 1px solid rgba(29, 79, 128, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 252, 247, 0.72);
+}
+
+.rag-citation-list summary {
+  color: var(--accent-strong);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.rag-citation-list p {
+  margin: 0.45rem 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.rag-citation-list span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.rag-document-list {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.rag-document-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(29, 79, 128, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.rag-document-list-item div {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.rag-document-list-item strong,
+.rag-document-list-item span {
+  overflow-wrap: anywhere;
+}
+
+.rag-document-list-item span {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.markdown-preview {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: -0.35rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(29, 79, 128, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.58);
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.markdown-preview h4,
+.markdown-preview h5,
+.markdown-preview h6,
+.markdown-preview p,
+.markdown-preview ul {
+  margin: 0;
+}
+
+.markdown-preview h4,
+.markdown-preview h5,
+.markdown-preview h6 {
+  color: var(--text);
+  font-family: var(--font-serif);
+  line-height: 1.2;
+}
+
+.markdown-preview ul {
+  padding-left: 1.15rem;
+}
+
+.markdown-preview code {
+  padding: 0.05rem 0.28rem;
+  border-radius: 6px;
+  background: rgba(29, 79, 128, 0.08);
+  color: var(--accent-strong);
+  font-size: 0.86em;
 }
 
 .run-card {
@@ -1057,7 +1390,11 @@ a {
   .section-columns,
   .section-columns--triple,
   .architecture-grid,
+  .experience-actions,
+  .experience-control-row,
   .overview-strip,
+  .rag-chat-grid,
+  .rag-config-grid,
   .run-grid,
   .editor-grid,
   .editor-panels,
@@ -1076,6 +1413,10 @@ a {
   }
 
   .sample-chaos-row {
+    grid-template-columns: 1fr;
+  }
+
+  .access-hub-section-heading {
     grid-template-columns: 1fr;
   }
 

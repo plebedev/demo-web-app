@@ -1,0 +1,1344 @@
+'use client';
+
+import React, {
+  FormEvent,
+  ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+
+import { clearStoredAccessToken } from '@/lib/access-token';
+import { useProtectedAccess } from '@/hooks/use-protected-access';
+
+type RagTab = 'chat' | 'configuration';
+
+type RagPersona = {
+  id: number;
+  name: string;
+  instructions: string;
+  capabilities: string | null;
+  tool_config: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+type PersonaListResponse = {
+  personas: RagPersona[];
+};
+
+type RagPersonaDocument = {
+  document_id: number;
+  source: string;
+  title: string | null;
+  display_name: string | null;
+  chunk_count: number;
+  linked_at: string;
+};
+
+type PersonaDocumentListResponse = {
+  documents: RagPersonaDocument[];
+};
+
+type RagConversation = {
+  id: number;
+  persona_id: number | null;
+  persona_name: string | null;
+  title: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type RagMessage = {
+  id: number;
+  role: 'user' | 'assistant' | string;
+  content: string;
+  turn_index: number;
+  metadata: string | null;
+  created_at: string;
+};
+
+type RagCitation = {
+  id: number;
+  message_id: number;
+  document_id: number;
+  chunk_id: number;
+  chunk_index: number;
+  source: string;
+  title: string | null;
+  snippet: string;
+  rank: number;
+};
+
+type ConversationListResponse = {
+  conversations: RagConversation[];
+};
+
+type ConversationDetailResponse = {
+  conversation: RagConversation;
+  messages: RagMessage[];
+};
+
+type ConversationMessageResponse = {
+  user_message: RagMessage;
+  assistant_message: RagMessage;
+  citations: RagCitation[];
+  turns_remaining: number;
+};
+
+type PersonaFormState = {
+  name: string;
+  instructions: string;
+  capabilities: string;
+};
+
+type DocumentFormState = {
+  title: string;
+  source: string;
+  inputText: string;
+  file: File | null;
+};
+
+const emptyPersonaForm: PersonaFormState = {
+  name: '',
+  instructions: '',
+  capabilities: '',
+};
+
+const emptyDocumentForm: DocumentFormState = {
+  title: '',
+  source: '',
+  inputText: '',
+  file: null,
+};
+
+function authHeaders(accessToken: string): HeadersInit {
+  return {
+    Authorization: `Bearer ${accessToken}`,
+    'Content-Type': 'application/json',
+  };
+}
+
+function renderInlineMarkdown(text: string): ReactNode[] {
+  const pattern = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\(https?:\/\/[^)]+\))/g;
+  const nodes: ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      nodes.push(text.slice(lastIndex, match.index));
+    }
+    const token = match[0];
+    const key = `${match.index}-${token}`;
+    if (token.startsWith('**')) {
+      nodes.push(<strong key={key}>{token.slice(2, -2)}</strong>);
+    } else if (token.startsWith('`')) {
+      nodes.push(<code key={key}>{token.slice(1, -1)}</code>);
+    } else {
+      const linkMatch = token.match(/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/);
+      if (linkMatch) {
+        nodes.push(
+          <a href={linkMatch[2]} key={key} rel="noreferrer" target="_blank">
+            {linkMatch[1]}
+          </a>,
+        );
+      } else {
+        nodes.push(token);
+      }
+    }
+    lastIndex = match.index + token.length;
+  }
+
+  if (lastIndex < text.length) {
+    nodes.push(text.slice(lastIndex));
+  }
+  return nodes;
+}
+
+function MarkdownPreview({ value }: { value: string }) {
+  const lines = value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length === 0) {
+    return null;
+  }
+
+  const blocks: ReactNode[] = [];
+  let listItems: string[] = [];
+
+  function flushList() {
+    if (listItems.length === 0) {
+      return;
+    }
+    const items = listItems;
+    listItems = [];
+    blocks.push(
+      <ul key={`list-${blocks.length}`}>
+        {items.map((item, index) => (
+          <li key={`${index}-${item}`}>{renderInlineMarkdown(item)}</li>
+        ))}
+      </ul>,
+    );
+  }
+
+  lines.forEach((line) => {
+    const listMatch = line.match(/^[-*]\s+(.+)$/);
+    if (listMatch) {
+      listItems.push(listMatch[1]);
+      return;
+    }
+    flushList();
+
+    const headingMatch = line.match(/^(#{1,3})\s+(.+)$/);
+    if (headingMatch) {
+      const HeadingTag =
+        headingMatch[1].length === 1
+          ? 'h4'
+          : headingMatch[1].length === 2
+            ? 'h5'
+            : 'h6';
+      blocks.push(
+        <HeadingTag key={`heading-${blocks.length}`}>
+          {renderInlineMarkdown(headingMatch[2])}
+        </HeadingTag>,
+      );
+      return;
+    }
+
+    blocks.push(
+      <p key={`paragraph-${blocks.length}`}>{renderInlineMarkdown(line)}</p>,
+    );
+  });
+  flushList();
+
+  return <div className="markdown-preview">{blocks}</div>;
+}
+
+export function RagWorkspace() {
+  const router = useRouter();
+  const { accessToken, isChecking } = useProtectedAccess('rag-demo');
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [activeTab, setActiveTab] = useState<RagTab>('configuration');
+  const [personas, setPersonas] = useState<RagPersona[]>([]);
+  const [selectedPersonaId, setSelectedPersonaId] = useState<number | null>(
+    null,
+  );
+  const [chatPersonaId, setChatPersonaId] = useState<number | null>(null);
+  const [selectedConversationId, setSelectedConversationId] = useState<
+    number | null
+  >(null);
+  const [form, setForm] = useState<PersonaFormState>(emptyPersonaForm);
+  const [documents, setDocuments] = useState<RagPersonaDocument[]>([]);
+  const [conversations, setConversations] = useState<RagConversation[]>([]);
+  const [messages, setMessages] = useState<RagMessage[]>([]);
+  const [citationsByMessageId, setCitationsByMessageId] = useState<
+    Record<number, RagCitation[]>
+  >({});
+  const [documentForm, setDocumentForm] =
+    useState<DocumentFormState>(emptyDocumentForm);
+  const [chatInput, setChatInput] = useState('');
+  const [isLoadingPersonas, setIsLoadingPersonas] = useState(false);
+  const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
+  const [isLoadingConversations, setIsLoadingConversations] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isSavingPersona, setIsSavingPersona] = useState(false);
+  const [isUploadingDocument, setIsUploadingDocument] = useState(false);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [turnsRemaining, setTurnsRemaining] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const selectedPersona = useMemo(
+    () => personas.find((persona) => persona.id === selectedPersonaId) || null,
+    [personas, selectedPersonaId],
+  );
+  const chatPersona = useMemo(
+    () => personas.find((persona) => persona.id === chatPersonaId) || null,
+    [chatPersonaId, personas],
+  );
+  const selectedConversation = useMemo(
+    () =>
+      conversations.find(
+        (conversation) => conversation.id === selectedConversationId,
+      ) || null,
+    [conversations, selectedConversationId],
+  );
+
+  useEffect(() => {
+    if (!accessToken) {
+      return;
+    }
+    let active = true;
+    const token = accessToken;
+
+    async function loadPersonas() {
+      setIsLoadingPersonas(true);
+      try {
+        const response = await fetch('/api/bff/rag/personas', {
+          cache: 'no-store',
+          headers: authHeaders(token),
+        });
+        if (!response.ok) {
+          throw new Error('Unable to load personas.');
+        }
+        const payload = (await response.json()) as PersonaListResponse;
+        if (!active) {
+          return;
+        }
+        setPersonas(payload.personas);
+        setSelectedPersonaId((current) => {
+          if (
+            current !== null &&
+            payload.personas.some((persona) => persona.id === current)
+          ) {
+            return current;
+          }
+          return payload.personas[0]?.id || null;
+        });
+        setChatPersonaId((current) => {
+          if (
+            current !== null &&
+            payload.personas.some((persona) => persona.id === current)
+          ) {
+            return current;
+          }
+          return payload.personas[0]?.id || null;
+        });
+        setError(null);
+      } catch (loadError) {
+        if (!active) {
+          return;
+        }
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : 'Unable to load personas.',
+        );
+      } finally {
+        if (active) {
+          setIsLoadingPersonas(false);
+        }
+      }
+    }
+
+    void loadPersonas();
+
+    return () => {
+      active = false;
+    };
+  }, [accessToken]);
+
+  useEffect(() => {
+    if (!accessToken) {
+      return;
+    }
+    let active = true;
+    const token = accessToken;
+
+    async function loadConversations() {
+      setIsLoadingConversations(true);
+      try {
+        const response = await fetch('/api/bff/rag/conversations', {
+          cache: 'no-store',
+          headers: authHeaders(token),
+        });
+        if (!response.ok) {
+          throw new Error('Unable to load conversations.');
+        }
+        const payload = (await response.json()) as ConversationListResponse;
+        if (!active) {
+          return;
+        }
+        setConversations(payload.conversations);
+        setSelectedConversationId((current) => {
+          if (
+            current !== null &&
+            payload.conversations.some(
+              (conversation) => conversation.id === current,
+            )
+          ) {
+            return current;
+          }
+          return payload.conversations[0]?.id || null;
+        });
+      } catch (loadError) {
+        if (!active) {
+          return;
+        }
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : 'Unable to load conversations.',
+        );
+      } finally {
+        if (active) {
+          setIsLoadingConversations(false);
+        }
+      }
+    }
+
+    void loadConversations();
+
+    return () => {
+      active = false;
+    };
+  }, [accessToken]);
+
+  useEffect(() => {
+    if (selectedPersona) {
+      setForm({
+        name: selectedPersona.name,
+        instructions: selectedPersona.instructions,
+        capabilities: selectedPersona.capabilities || '',
+      });
+      return;
+    }
+    setForm(emptyPersonaForm);
+  }, [selectedPersona]);
+
+  useEffect(() => {
+    if (!accessToken || selectedPersonaId === null) {
+      setDocuments([]);
+      return;
+    }
+    let active = true;
+    const token = accessToken;
+    const personaId = selectedPersonaId;
+
+    async function loadDocuments() {
+      setIsLoadingDocuments(true);
+      try {
+        const response = await fetch(
+          `/api/bff/rag/personas/${personaId}/documents`,
+          {
+            cache: 'no-store',
+            headers: authHeaders(token),
+          },
+        );
+        if (!response.ok) {
+          throw new Error('Unable to load persona documents.');
+        }
+        const payload = (await response.json()) as PersonaDocumentListResponse;
+        if (!active) {
+          return;
+        }
+        setDocuments(payload.documents);
+      } catch (loadError) {
+        if (!active) {
+          return;
+        }
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : 'Unable to load persona documents.',
+        );
+      } finally {
+        if (active) {
+          setIsLoadingDocuments(false);
+        }
+      }
+    }
+
+    void loadDocuments();
+
+    return () => {
+      active = false;
+    };
+  }, [accessToken, selectedPersonaId]);
+
+  useEffect(() => {
+    if (!accessToken || selectedConversationId === null) {
+      setMessages([]);
+      setCitationsByMessageId({});
+      setTurnsRemaining(null);
+      return;
+    }
+    let active = true;
+    const token = accessToken;
+    const conversationId = selectedConversationId;
+
+    async function loadConversationMessages() {
+      setIsLoadingMessages(true);
+      try {
+        const response = await fetch(
+          `/api/bff/rag/conversations/${conversationId}`,
+          {
+            cache: 'no-store',
+            headers: authHeaders(token),
+          },
+        );
+        if (!response.ok) {
+          throw new Error('Unable to load conversation.');
+        }
+        const payload = (await response.json()) as ConversationDetailResponse;
+        if (!active) {
+          return;
+        }
+        setMessages(payload.messages);
+        setCitationsByMessageId({});
+        const userTurns = payload.messages.filter(
+          (message) => message.role === 'user',
+        ).length;
+        setTurnsRemaining(Math.max(0, 10 - userTurns));
+        setConversations((current) =>
+          current.map((conversation) =>
+            conversation.id === payload.conversation.id
+              ? payload.conversation
+              : conversation,
+          ),
+        );
+        if (payload.conversation.persona_id !== null) {
+          setChatPersonaId(payload.conversation.persona_id);
+        }
+      } catch (loadError) {
+        if (!active) {
+          return;
+        }
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : 'Unable to load conversation.',
+        );
+      } finally {
+        if (active) {
+          setIsLoadingMessages(false);
+        }
+      }
+    }
+
+    void loadConversationMessages();
+
+    return () => {
+      active = false;
+    };
+  }, [accessToken, selectedConversationId]);
+
+  function handleSignOut() {
+    clearStoredAccessToken('rag-demo');
+    router.replace('/');
+  }
+
+  function handleNewPersona() {
+    setSelectedPersonaId(null);
+    setForm(emptyPersonaForm);
+    setError(null);
+    setNotice(null);
+  }
+
+  async function handlePersonaSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken) {
+      return;
+    }
+    setIsSavingPersona(true);
+    setError(null);
+    setNotice(null);
+
+    const payload = {
+      name: form.name,
+      instructions: form.instructions,
+      capabilities: form.capabilities || null,
+      tool_config: null,
+    };
+    const targetPath =
+      selectedPersonaId === null
+        ? '/api/bff/rag/personas'
+        : `/api/bff/rag/personas/${selectedPersonaId}`;
+
+    try {
+      const response = await fetch(targetPath, {
+        method: selectedPersonaId === null ? 'POST' : 'PUT',
+        headers: authHeaders(accessToken),
+        body: JSON.stringify(payload),
+      });
+      const responsePayload = (await response.json().catch(() => null)) as
+        | (RagPersona & { detail?: string })
+        | null;
+      if (!response.ok || responsePayload === null) {
+        throw new Error(
+          typeof responsePayload?.detail === 'string'
+            ? responsePayload.detail
+            : 'Unable to save persona.',
+        );
+      }
+
+      setPersonas((current) => {
+        if (selectedPersonaId === null) {
+          return [...current, responsePayload].sort((left, right) =>
+            left.name.localeCompare(right.name),
+          );
+        }
+        return current.map((persona) =>
+          persona.id === responsePayload.id ? responsePayload : persona,
+        );
+      });
+      setSelectedPersonaId(responsePayload.id);
+      setNotice('Persona saved.');
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : 'Unable to save persona.',
+      );
+    } finally {
+      setIsSavingPersona(false);
+    }
+  }
+
+  async function handleDeletePersona() {
+    if (!accessToken || selectedPersonaId === null) {
+      return;
+    }
+    setIsSavingPersona(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await fetch(
+        `/api/bff/rag/personas/${selectedPersonaId}`,
+        {
+          method: 'DELETE',
+          headers: authHeaders(accessToken),
+        },
+      );
+      if (!response.ok) {
+        throw new Error('Unable to delete persona.');
+      }
+      setPersonas((current) =>
+        current.filter((persona) => persona.id !== selectedPersonaId),
+      );
+      setSelectedPersonaId(null);
+      setForm(emptyPersonaForm);
+      setDocuments([]);
+      setNotice('Persona deleted.');
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : 'Unable to delete persona.',
+      );
+    } finally {
+      setIsSavingPersona(false);
+    }
+  }
+
+  async function handleDocumentSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken || selectedPersonaId === null) {
+      return;
+    }
+    setIsUploadingDocument(true);
+    setError(null);
+    setNotice(null);
+
+    const body = new FormData();
+    if (documentForm.title.trim()) {
+      body.set('title', documentForm.title.trim());
+    }
+    if (documentForm.source.trim()) {
+      body.set('source', documentForm.source.trim());
+    }
+    if (documentForm.inputText.trim()) {
+      body.set('input_text', documentForm.inputText.trim());
+    }
+    if (documentForm.file) {
+      body.set('file', documentForm.file);
+    }
+
+    try {
+      const response = await fetch(
+        `/api/bff/rag/personas/${selectedPersonaId}/documents`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body,
+        },
+      );
+      const payload = (await response.json().catch(() => null)) as {
+        document?: RagPersonaDocument;
+        reused_existing_document?: boolean;
+        detail?: string;
+      } | null;
+      if (!response.ok || !payload?.document) {
+        throw new Error(
+          typeof payload?.detail === 'string'
+            ? payload.detail
+            : 'Unable to upload document.',
+        );
+      }
+      const uploadedDocument = payload.document;
+      setDocuments((current) => {
+        const withoutExisting = current.filter(
+          (document) => document.document_id !== uploadedDocument.document_id,
+        );
+        return [uploadedDocument, ...withoutExisting];
+      });
+      setDocumentForm(emptyDocumentForm);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      setNotice(
+        payload.reused_existing_document
+          ? 'Existing document linked to persona.'
+          : 'Document uploaded and linked to persona.',
+      );
+    } catch (uploadError) {
+      setError(
+        uploadError instanceof Error
+          ? uploadError.message
+          : 'Unable to upload document.',
+      );
+    } finally {
+      setIsUploadingDocument(false);
+    }
+  }
+
+  async function handleRemoveDocument(documentId: number) {
+    if (!accessToken || selectedPersonaId === null) {
+      return;
+    }
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await fetch(
+        `/api/bff/rag/personas/${selectedPersonaId}/documents/${documentId}`,
+        {
+          method: 'DELETE',
+          headers: authHeaders(accessToken),
+        },
+      );
+      if (!response.ok) {
+        throw new Error('Unable to remove document from persona.');
+      }
+      setDocuments((current) =>
+        current.filter((document) => document.document_id !== documentId),
+      );
+      setNotice('Document removed from persona.');
+    } catch (removeError) {
+      setError(
+        removeError instanceof Error
+          ? removeError.message
+          : 'Unable to remove document from persona.',
+      );
+    }
+  }
+
+  async function handleCreateConversation() {
+    if (!accessToken || chatPersonaId === null) {
+      return;
+    }
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await fetch('/api/bff/rag/conversations', {
+        method: 'POST',
+        headers: authHeaders(accessToken),
+        body: JSON.stringify({
+          persona_id: chatPersonaId,
+          title: chatPersona ? `${chatPersona.name} chat` : 'RAG conversation',
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | (RagConversation & { detail?: string })
+        | null;
+      if (!response.ok || payload === null) {
+        throw new Error(
+          typeof payload?.detail === 'string'
+            ? payload.detail
+            : 'Unable to create conversation.',
+        );
+      }
+      setConversations((current) => [payload, ...current]);
+      setSelectedConversationId(payload.id);
+      setMessages([]);
+      setCitationsByMessageId({});
+      setTurnsRemaining(10);
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : 'Unable to create conversation.',
+      );
+    }
+  }
+
+  async function handleChatSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken || selectedConversationId === null || !chatInput.trim()) {
+      return;
+    }
+    setIsSendingMessage(true);
+    setError(null);
+    setNotice(null);
+
+    const content = chatInput.trim();
+    try {
+      const response = await fetch(
+        `/api/bff/rag/conversations/${selectedConversationId}/messages`,
+        {
+          method: 'POST',
+          headers: authHeaders(accessToken),
+          body: JSON.stringify({ content }),
+        },
+      );
+      const payload = (await response.json().catch(() => null)) as
+        | (ConversationMessageResponse & { detail?: string })
+        | null;
+      if (!response.ok || payload === null) {
+        throw new Error(
+          typeof payload?.detail === 'string'
+            ? payload.detail
+            : 'Unable to send message.',
+        );
+      }
+      setMessages((current) => [
+        ...current,
+        payload.user_message,
+        payload.assistant_message,
+      ]);
+      setCitationsByMessageId((current) => ({
+        ...current,
+        [payload.assistant_message.id]: payload.citations,
+      }));
+      setTurnsRemaining(payload.turns_remaining);
+      setChatInput('');
+      setConversations((current) =>
+        current.map((conversation) =>
+          conversation.id === selectedConversationId
+            ? { ...conversation, updated_at: new Date().toISOString() }
+            : conversation,
+        ),
+      );
+    } catch (sendError) {
+      setError(
+        sendError instanceof Error
+          ? sendError.message
+          : 'Unable to send message.',
+      );
+    } finally {
+      setIsSendingMessage(false);
+    }
+  }
+
+  return (
+    <main className="shell shell--workspace">
+      <header className="topbar topbar--workspace">
+        <Link className="brand" href="/rag-demo">
+          <span className="brand-mark">R</span>
+          <span>
+            <strong>RAG Demo</strong>
+            <small>Protected retrieval workspace</small>
+          </span>
+        </Link>
+
+        <nav className="topnav" aria-label="RAG demo">
+          <button
+            className={activeTab === 'chat' ? 'topnav-link-active' : ''}
+            onClick={() => setActiveTab('chat')}
+            type="button"
+          >
+            Chat
+          </button>
+          <button
+            className={
+              activeTab === 'configuration' ? 'topnav-link-active' : ''
+            }
+            onClick={() => setActiveTab('configuration')}
+            type="button"
+          >
+            Configuration
+          </button>
+          <Link href="/">Access hub</Link>
+          <Link href="/privacy">Privacy</Link>
+          <Link href="/terms">Terms</Link>
+        </nav>
+
+        <button
+          className="secondary-button"
+          onClick={handleSignOut}
+          type="button"
+        >
+          Leave demo
+        </button>
+      </header>
+
+      {isChecking ? (
+        <section className="workspace-hero">
+          <div className="hero-copy">
+            <p className="eyebrow">RAG demo</p>
+            <h1>Checking your saved RAG access.</h1>
+          </div>
+        </section>
+      ) : activeTab === 'chat' ? (
+        <section className="section-grid">
+          <div className="section-heading">
+            <p className="eyebrow">Chat</p>
+            <h2>Ask a persona-grounded question.</h2>
+            <p className="lede lede--compact">
+              Conversations use the selected persona and retrieve only from
+              documents linked to that persona.
+            </p>
+          </div>
+
+          {error ? <p className="error-text">{error}</p> : null}
+          {notice ? <p className="success-text">{notice}</p> : null}
+
+          <div className="rag-chat-grid">
+            <section className="section-card rag-chat-sidebar">
+              <p className="card-kicker">Persona</p>
+              {personas.length === 0 ? (
+                <p className="section-detail">
+                  Create a persona in Configuration before starting a chat.
+                </p>
+              ) : (
+                <>
+                  <label className="field-label" htmlFor="rag-chat-persona">
+                    Assistant
+                  </label>
+                  <select
+                    className="select-input"
+                    disabled={isLoadingPersonas}
+                    id="rag-chat-persona"
+                    onChange={(event) =>
+                      setChatPersonaId(Number(event.target.value))
+                    }
+                    value={chatPersonaId || ''}
+                  >
+                    {personas.map((persona) => (
+                      <option key={persona.id} value={persona.id}>
+                        {persona.name}
+                      </option>
+                    ))}
+                  </select>
+                  {chatPersona?.capabilities ? (
+                    <MarkdownPreview value={chatPersona.capabilities} />
+                  ) : null}
+                  <button
+                    className="primary-button"
+                    disabled={chatPersonaId === null}
+                    onClick={() => void handleCreateConversation()}
+                    type="button"
+                  >
+                    New chat
+                  </button>
+                </>
+              )}
+
+              <div className="rag-conversation-list">
+                <p className="card-kicker">Conversations</p>
+                {isLoadingConversations ? (
+                  <p className="section-detail">Loading conversations.</p>
+                ) : conversations.length === 0 ? (
+                  <p className="section-detail">No conversations yet.</p>
+                ) : (
+                  conversations.map((conversation) => (
+                    <button
+                      className={`rag-persona-list-item ${
+                        conversation.id === selectedConversationId
+                          ? 'rag-persona-list-item--active'
+                          : ''
+                      }`}
+                      key={conversation.id}
+                      onClick={() => setSelectedConversationId(conversation.id)}
+                      type="button"
+                    >
+                      <strong>{conversation.title || 'Untitled chat'}</strong>
+                      <span>
+                        {conversation.persona_name || 'No persona'} ·{' '}
+                        {conversation.status}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </section>
+
+            <section className="section-card rag-chat-panel">
+              <div className="run-card-row">
+                <div>
+                  <p className="card-kicker">Conversation</p>
+                  <h3>
+                    {selectedConversation?.title ||
+                      chatPersona?.name ||
+                      'RAG chat'}
+                  </h3>
+                </div>
+                {turnsRemaining !== null ? (
+                  <span className="status-pill">
+                    {turnsRemaining} turns left
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="rag-message-list">
+                {isLoadingMessages ? (
+                  <p className="section-detail">Loading messages.</p>
+                ) : selectedConversationId === null ? (
+                  <p className="section-detail">
+                    Start a new chat or select an existing conversation.
+                  </p>
+                ) : messages.length === 0 ? (
+                  <p className="section-detail">
+                    Ask the first question for this persona.
+                  </p>
+                ) : (
+                  messages.map((message) => (
+                    <article
+                      className={`rag-message rag-message--${message.role}`}
+                      key={message.id}
+                    >
+                      <p className="card-kicker">
+                        {message.role === 'user' ? 'You' : 'Assistant'}
+                      </p>
+                      {message.role === 'assistant' ? (
+                        <MarkdownPreview value={message.content} />
+                      ) : (
+                        <p>{message.content}</p>
+                      )}
+                      {citationsByMessageId[message.id]?.length ? (
+                        <div className="rag-citation-list">
+                          {citationsByMessageId[message.id].map((citation) => (
+                            <details key={citation.id}>
+                              <summary>
+                                {citation.title ||
+                                  citation.source ||
+                                  `Document ${citation.document_id}`}
+                              </summary>
+                              <p>{citation.snippet}</p>
+                              <span>
+                                {citation.source} · chunk {citation.chunk_index}
+                              </span>
+                            </details>
+                          ))}
+                        </div>
+                      ) : null}
+                    </article>
+                  ))
+                )}
+              </div>
+
+              <form className="invite-form" onSubmit={handleChatSubmit}>
+                <label className="field-label" htmlFor="rag-chat-input">
+                  Message
+                </label>
+                <textarea
+                  className="text-area text-area--compact"
+                  disabled={
+                    selectedConversationId === null ||
+                    isSendingMessage ||
+                    turnsRemaining === 0
+                  }
+                  id="rag-chat-input"
+                  onChange={(event) => setChatInput(event.target.value)}
+                  placeholder="Ask a question grounded in this persona's documents."
+                  rows={4}
+                  value={chatInput}
+                />
+                <button
+                  className="primary-button"
+                  disabled={
+                    selectedConversationId === null ||
+                    isSendingMessage ||
+                    turnsRemaining === 0 ||
+                    !chatInput.trim()
+                  }
+                  type="submit"
+                >
+                  {isSendingMessage ? 'Sending...' : 'Send'}
+                </button>
+              </form>
+            </section>
+          </div>
+        </section>
+      ) : (
+        <section className="section-grid">
+          <div className="section-heading">
+            <p className="eyebrow">Configuration</p>
+            <h2>Configure assistant personas.</h2>
+            <p className="lede lede--compact">
+              Personas are scoped to this invitation code. Future uploads and
+              retrieval will be limited to documents linked to the selected
+              persona.
+            </p>
+          </div>
+
+          {error ? <p className="error-text">{error}</p> : null}
+          {notice ? <p className="success-text">{notice}</p> : null}
+
+          <div className="rag-config-grid">
+            <section className="section-card rag-persona-list">
+              <div className="run-card-row">
+                <div>
+                  <p className="card-kicker">Personas</p>
+                  <h3>Available assistants</h3>
+                </div>
+                <button
+                  className="secondary-button"
+                  onClick={handleNewPersona}
+                  type="button"
+                >
+                  New
+                </button>
+              </div>
+
+              {isLoadingPersonas ? (
+                <p className="section-detail">Loading personas.</p>
+              ) : personas.length === 0 ? (
+                <p className="section-detail">
+                  No personas yet. Create one to define how the future RAG
+                  assistant should behave.
+                </p>
+              ) : (
+                <div className="rag-persona-list-items">
+                  {personas.map((persona) => (
+                    <button
+                      className={`rag-persona-list-item ${
+                        persona.id === selectedPersonaId
+                          ? 'rag-persona-list-item--active'
+                          : ''
+                      }`}
+                      key={persona.id}
+                      onClick={() => setSelectedPersonaId(persona.id)}
+                      type="button"
+                    >
+                      <strong>{persona.name}</strong>
+                      <span>
+                        {persona.capabilities || 'No capabilities set'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="section-card">
+              <p className="card-kicker">
+                {selectedPersona ? 'Edit persona' : 'Create persona'}
+              </p>
+              <form className="invite-form" onSubmit={handlePersonaSubmit}>
+                <label className="field-label" htmlFor="rag-persona-name">
+                  Name
+                </label>
+                <input
+                  id="rag-persona-name"
+                  className="text-input"
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      name: event.target.value,
+                    }))
+                  }
+                  required
+                  value={form.name}
+                />
+                <label
+                  className="field-label"
+                  htmlFor="rag-persona-instructions"
+                >
+                  Instructions
+                </label>
+                <textarea
+                  id="rag-persona-instructions"
+                  className="text-area text-area--request"
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      instructions: event.target.value,
+                    }))
+                  }
+                  required
+                  rows={5}
+                  value={form.instructions}
+                />
+                <MarkdownPreview value={form.instructions} />
+                <label
+                  className="field-label"
+                  htmlFor="rag-persona-capabilities"
+                >
+                  Capabilities
+                </label>
+                <textarea
+                  id="rag-persona-capabilities"
+                  className="text-area text-area--request"
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      capabilities: event.target.value,
+                    }))
+                  }
+                  placeholder="Describe what this persona can help with."
+                  rows={4}
+                  value={form.capabilities}
+                />
+                <MarkdownPreview value={form.capabilities} />
+                <div className="workspace-toolbar">
+                  <button
+                    className="primary-button"
+                    disabled={
+                      isSavingPersona ||
+                      !form.name.trim() ||
+                      !form.instructions.trim()
+                    }
+                    type="submit"
+                  >
+                    {isSavingPersona ? 'Saving...' : 'Save persona'}
+                  </button>
+                  {selectedPersona ? (
+                    <button
+                      className="secondary-button"
+                      disabled={isSavingPersona}
+                      onClick={handleDeletePersona}
+                      type="button"
+                    >
+                      Delete
+                    </button>
+                  ) : null}
+                </div>
+              </form>
+            </section>
+
+            <section className="section-card rag-documents-placeholder">
+              <p className="card-kicker">Documents</p>
+              <h3>Persona knowledge</h3>
+              {selectedPersona ? (
+                <>
+                  <form className="invite-form" onSubmit={handleDocumentSubmit}>
+                    <label className="field-label" htmlFor="rag-document-title">
+                      Title
+                    </label>
+                    <input
+                      id="rag-document-title"
+                      className="text-input"
+                      onChange={(event) =>
+                        setDocumentForm((current) => ({
+                          ...current,
+                          title: event.target.value,
+                        }))
+                      }
+                      value={documentForm.title}
+                    />
+                    <label
+                      className="field-label"
+                      htmlFor="rag-document-source"
+                    >
+                      Source
+                    </label>
+                    <input
+                      id="rag-document-source"
+                      className="text-input"
+                      onChange={(event) =>
+                        setDocumentForm((current) => ({
+                          ...current,
+                          source: event.target.value,
+                        }))
+                      }
+                      placeholder="Optional filename or source label"
+                      value={documentForm.source}
+                    />
+                    <label className="field-label" htmlFor="rag-document-text">
+                      Pasted text
+                    </label>
+                    <textarea
+                      id="rag-document-text"
+                      className="text-area text-area--compact"
+                      onChange={(event) =>
+                        setDocumentForm((current) => ({
+                          ...current,
+                          inputText: event.target.value,
+                        }))
+                      }
+                      rows={4}
+                      value={documentForm.inputText}
+                    />
+                    <label className="field-label" htmlFor="rag-document-file">
+                      Text or PDF file
+                    </label>
+                    <input
+                      id="rag-document-file"
+                      accept=".txt,.pdf,text/plain,application/pdf"
+                      className="text-input"
+                      onChange={(event) =>
+                        setDocumentForm((current) => ({
+                          ...current,
+                          file: event.target.files?.[0] || null,
+                        }))
+                      }
+                      ref={fileInputRef}
+                      type="file"
+                    />
+                    <button
+                      className="primary-button"
+                      disabled={
+                        isUploadingDocument ||
+                        (!documentForm.inputText.trim() && !documentForm.file)
+                      }
+                      type="submit"
+                    >
+                      {isUploadingDocument ? 'Uploading...' : 'Upload document'}
+                    </button>
+                  </form>
+
+                  {isLoadingDocuments ? (
+                    <p className="section-detail">Loading documents.</p>
+                  ) : documents.length === 0 ? (
+                    <p className="section-detail">
+                      No documents linked to this persona yet.
+                    </p>
+                  ) : (
+                    <div className="rag-document-list">
+                      {documents.map((document) => (
+                        <article
+                          className="rag-document-list-item"
+                          key={document.document_id}
+                        >
+                          <div>
+                            <strong>
+                              {document.display_name ||
+                                document.title ||
+                                document.source}
+                            </strong>
+                            <span>
+                              {document.chunk_count} chunks · {document.source}
+                            </span>
+                          </div>
+                          <button
+                            className="secondary-button"
+                            onClick={() =>
+                              void handleRemoveDocument(document.document_id)
+                            }
+                            type="button"
+                          >
+                            Remove
+                          </button>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                  <p className="section-detail">
+                    Removing a document only removes it from this persona. The
+                    reusable document and chunks are kept for dedupe.
+                  </p>
+                </>
+              ) : (
+                <p className="section-detail">
+                  Select or create a persona before adding documents.
+                </p>
+              )}
+            </section>
+          </div>
+        </section>
+      )}
+    </main>
+  );
+}
