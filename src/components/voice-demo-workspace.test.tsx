@@ -91,6 +91,12 @@ function makeBaseFetch(
         headers: { 'Content-Type': 'application/json' },
       });
     }
+    if (url.includes('/api/bff/voice/history')) {
+      return new Response(JSON.stringify({ conversations: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
     throw new Error(`Unexpected fetch: ${url} ${init?.method}`);
   });
 }
@@ -338,5 +344,57 @@ describe('VoiceDemoWorkspace', () => {
     render(<VoiceDemoWorkspace />);
 
     expect(await screen.findByText('Unable to load personas.')).toBeTruthy();
+  });
+
+  it('renders History tab button', async () => {
+    vi.stubGlobal('fetch', makeBaseFetch());
+    render(<VoiceDemoWorkspace />);
+    expect(await screen.findByRole('button', { name: 'History' })).toBeTruthy();
+  });
+
+  it('History tab shows empty state when no conversations', async () => {
+    vi.stubGlobal('fetch', makeBaseFetch());
+    render(<VoiceDemoWorkspace />);
+    fireEvent.click(await screen.findByRole('button', { name: 'History' }));
+    expect(
+      await screen.findByText(/No conversations recorded yet/),
+    ).toBeTruthy();
+  });
+
+  it('History tab fetches and displays conversation rows', async () => {
+    const historyResponse = JSON.stringify({
+      conversations: [
+        {
+          id: 1,
+          call_sid: 'browser-abc123',
+          provider: 'xai',
+          voice: 'eve',
+          started_at: '2026-05-09T10:00:00Z',
+          ended_at: '2026-05-09T10:01:30Z',
+          duration_seconds: 90,
+          input_audio_seconds: 40,
+          output_audio_seconds: 50,
+          estimated_cost_usd: 0.0125,
+          entry_count: 3,
+        },
+      ],
+    });
+    vi.stubGlobal(
+      'fetch',
+      makeBaseFetch((url) => {
+        if (url.includes('/api/bff/voice/history')) {
+          return new Response(historyResponse, {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        return null;
+      }),
+    );
+    render(<VoiceDemoWorkspace />);
+    fireEvent.click(await screen.findByRole('button', { name: 'History' }));
+    expect(await screen.findByText('xai/eve')).toBeTruthy();
+    expect(screen.getByText('1m 30s')).toBeTruthy();
+    expect(screen.getByText('~$0.0125')).toBeTruthy();
   });
 });

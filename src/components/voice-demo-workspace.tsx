@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { clearStoredAccessToken } from '@/lib/access-token';
 import { useProtectedAccess } from '@/hooks/use-protected-access';
 
-type VoiceTab = 'test' | 'configuration';
+type VoiceTab = 'test' | 'configuration' | 'history';
 
 type VoicePersona = {
   id: number;
@@ -43,6 +43,28 @@ type TranscriptEntry =
       tool_name: string;
       args: Record<string, unknown>;
     };
+
+type ConversationSummary = {
+  id: number;
+  call_sid: string;
+  provider: string;
+  voice: string;
+  started_at: string;
+  ended_at: string | null;
+  duration_seconds: number | null;
+  input_audio_seconds: number | null;
+  output_audio_seconds: number | null;
+  estimated_cost_usd: number | null;
+  entry_count: number;
+};
+
+type HistoryTranscriptEntry =
+  | { role: 'advisor' | 'user'; text: string }
+  | { role: 'tool_call'; tool_name: string; args: Record<string, unknown> };
+
+type ConversationDetail = ConversationSummary & {
+  transcript: HistoryTranscriptEntry[];
+};
 
 type PersonaFormState = {
   name: string;
@@ -90,6 +112,15 @@ export function VoiceDemoWorkspace() {
   const [connectionState, setConnectionState] =
     useState<ConnectionState>('idle');
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
+
+  // History state
+  const [historyRecords, setHistoryRecords] = useState<ConversationSummary[]>(
+    [],
+  );
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [expandedDetail, setExpandedDetail] =
+    useState<ConversationDetail | null>(null);
 
   // Feedback
   const [error, setError] = useState<string | null>(null);
@@ -217,6 +248,45 @@ export function VoiceDemoWorkspace() {
       active = false;
     };
   }, [accessToken]);
+
+  // Load history when the History tab becomes active
+  useEffect(() => {
+    if (activeTab !== 'history' || !accessToken) {
+      return;
+    }
+    let active = true;
+    const token = accessToken;
+    setIsLoadingHistory(true);
+
+    async function loadHistory() {
+      try {
+        const response = await fetch('/api/bff/voice/history', {
+          cache: 'no-store',
+          headers: authHeaders(token),
+        });
+        if (!response.ok) {
+          return;
+        }
+        const payload = (await response.json()) as {
+          conversations: ConversationSummary[];
+        };
+        if (active) {
+          setHistoryRecords(payload.conversations);
+        }
+      } catch {
+        // Non-fatal
+      } finally {
+        if (active) {
+          setIsLoadingHistory(false);
+        }
+      }
+    }
+
+    void loadHistory();
+    return () => {
+      active = false;
+    };
+  }, [activeTab, accessToken]);
 
   // Clean up WebSocket and mic on unmount
   useEffect(() => {
@@ -592,6 +662,30 @@ export function VoiceDemoWorkspace() {
     ]);
   }
 
+  async function handleExpandConversation(id: number) {
+    if (expandedId === id) {
+      setExpandedId(null);
+      setExpandedDetail(null);
+      return;
+    }
+    setExpandedId(id);
+    setExpandedDetail(null);
+    if (!accessToken) {
+      return;
+    }
+    try {
+      const response = await fetch(`/api/bff/voice/history/${id}`, {
+        headers: authHeaders(accessToken),
+      });
+      if (response.ok) {
+        const detail = (await response.json()) as ConversationDetail;
+        setExpandedDetail(detail);
+      }
+    } catch {
+      // Non-fatal
+    }
+  }
+
   const isCallActive =
     connectionState === 'connected' || connectionState === 'connecting';
   const activePersona = personas[0] ?? null;
@@ -627,6 +721,13 @@ export function VoiceDemoWorkspace() {
             type="button"
           >
             Configuration
+          </button>
+          <button
+            className={activeTab === 'history' ? 'topnav-link-active' : ''}
+            onClick={() => setActiveTab('history')}
+            type="button"
+          >
+            History
           </button>
           <Link href="/">Access hub</Link>
           <Link href="/privacy">Privacy</Link>
@@ -751,7 +852,7 @@ export function VoiceDemoWorkspace() {
             </section>
           </div>
         </section>
-      ) : (
+      ) : activeTab === 'configuration' ? (
         <section className="section-grid">
           <div className="section-heading">
             <p className="eyebrow">Configuration</p>
@@ -982,9 +1083,127 @@ export function VoiceDemoWorkspace() {
             </div>
           </div>
         </section>
+      ) : (
+        <section className="section-grid">
+          <div className="section-heading">
+            <p className="eyebrow">History</p>
+            <h2>Past conversations.</h2>
+            <p className="lede lede--compact">
+              Each completed voice session is stored below with duration,
+              provider, and an estimated cost. Click a row to expand the
+              transcript.
+            </p>
+            <p className="voice-history-cost-note">
+              Cost estimates are approximate. xAI rate: $3/hr. OpenAI rate:
+              ~$0.10–$0.35/min (midpoint used).
+            </p>
+          </div>
+
+          <div className="voice-history-list">
+            {isLoadingHistory ? (
+              <p className="section-detail">Loading history…</p>
+            ) : historyRecords.length === 0 ? (
+              <p className="section-detail">
+                No conversations recorded yet. Complete a voice session to see
+                it here.
+              </p>
+            ) : (
+              historyRecords.map((rec) => (
+                <div
+                  className="voice-history-item"
+                  key={rec.id}
+                  onClick={() => void handleExpandConversation(rec.id)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      void handleExpandConversation(rec.id);
+                    }
+                  }}
+                >
+                  <div className="voice-history-item-meta">
+                    <strong>{new Date(rec.started_at).toLocaleString()}</strong>
+                    <span className="voice-history-meta-chip">
+                      {rec.provider}/{rec.voice}
+                    </span>
+                    {rec.duration_seconds !== null ? (
+                      <span className="voice-history-meta-chip">
+                        {formatDuration(rec.duration_seconds)}
+                      </span>
+                    ) : null}
+                    {rec.estimated_cost_usd !== null ? (
+                      <span className="voice-history-meta-chip">
+                        ~{formatCost(rec.estimated_cost_usd)}
+                      </span>
+                    ) : null}
+                    <span className="voice-history-meta-chip">
+                      {rec.entry_count} entries
+                    </span>
+                  </div>
+
+                  {expandedId === rec.id ? (
+                    expandedDetail ? (
+                      <div className="voice-history-transcript">
+                        {expandedDetail.transcript.map((entry, idx) =>
+                          entry.role === 'tool_call' ? (
+                            <article
+                              className="voice-message voice-message--tool-call"
+                              key={idx}
+                            >
+                              <p className="voice-tool-call-name">
+                                {entry.tool_name}
+                              </p>
+                              {Object.entries(entry.args).map(([key, val]) => (
+                                <p className="voice-tool-call-arg" key={key}>
+                                  <span className="voice-tool-call-arg-key">
+                                    {key}:
+                                  </span>{' '}
+                                  {String(val)}
+                                </p>
+                              ))}
+                            </article>
+                          ) : (
+                            <article
+                              className={`voice-message voice-message--${entry.role}`}
+                              key={idx}
+                            >
+                              <p className="card-kicker">
+                                {entry.role === 'advisor' ? 'Advisor' : 'You'}
+                              </p>
+                              <p>{entry.text}</p>
+                            </article>
+                          ),
+                        )}
+                      </div>
+                    ) : (
+                      <p className="section-detail">Loading transcript…</p>
+                    )
+                  ) : null}
+                </div>
+              ))
+            )}
+          </div>
+        </section>
       )}
     </main>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Formatting helpers
+// ---------------------------------------------------------------------------
+
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+function formatCost(usd: number): string {
+  if (usd < 0.001) {
+    return '< $0.001';
+  }
+  return `$${usd.toFixed(4)}`;
 }
 
 // ---------------------------------------------------------------------------
