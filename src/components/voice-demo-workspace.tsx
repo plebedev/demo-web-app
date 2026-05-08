@@ -85,6 +85,7 @@ export function VoiceDemoWorkspace() {
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const nextPlayTimeRef = useRef(0);
+  const activeSourcesRef = useRef<AudioBufferSourceNode[]>([]);
   const entryIdRef = useRef(0);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -335,30 +336,46 @@ export function VoiceDemoWorkspace() {
     const wsBase =
       process.env.NEXT_PUBLIC_BACKEND_WS_URL ??
       `${wsScheme}://${window.location.host}`;
-    const wsUrl = `${wsBase}/api/voice/browser-stream?token=${encodeURIComponent(accessToken)}`;
+    const wsUrl = `${wsBase}/api/voice/stream?token=${encodeURIComponent(accessToken)}`;
 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
-    ws.onopen = () => setConnectionState('connected');
+    const callSid = `browser-${crypto.randomUUID()}`;
+    const streamSid = `stream-${crypto.randomUUID()}`;
+
+    ws.onopen = () => {
+      ws.send(
+        JSON.stringify({ event: 'start', start: { callSid, streamSid } }),
+      );
+      setConnectionState('connected');
+    };
 
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data as string) as {
-          type: string;
-          data?: string;
+          event: string;
+          media?: { payload: string };
           text?: string;
           message?: string;
         };
-        if (msg.type === 'audio' && msg.data) {
-          playAudio(msg.data);
-        } else if (msg.type === 'transcript' && msg.text) {
+        if (msg.event === 'media' && msg.media?.payload) {
+          playAudio(msg.media.payload);
+        } else if (msg.event === 'transcript' && msg.text) {
           appendTranscript('advisor', msg.text);
-        } else if (msg.type === 'user_transcript' && msg.text) {
+        } else if (msg.event === 'user_transcript' && msg.text) {
           appendTranscript('user', msg.text);
-        } else if (msg.type === 'end') {
-          // Close WS and stop mic capture immediately, but let queued
-          // audio finish before tearing down the AudioContext.
+        } else if (msg.event === 'clear') {
+          activeSourcesRef.current.forEach((s) => {
+            try {
+              s.stop();
+            } catch {
+              /* already stopped */
+            }
+          });
+          activeSourcesRef.current = [];
+          nextPlayTimeRef.current = audioCtxRef.current?.currentTime ?? 0;
+        } else if (msg.event === 'end') {
           wsRef.current?.close();
           wsRef.current = null;
           processorRef.current?.disconnect();
@@ -375,12 +392,12 @@ export function VoiceDemoWorkspace() {
             nextPlayTimeRef.current = 0;
             setConnectionState('idle');
           }, remainingMs + 150);
-        } else if (msg.type === 'error') {
+        } else if (msg.event === 'error') {
           setError(msg.message ?? 'Unknown error from voice service.');
           setConnectionState('error');
         }
       } catch {
-        // ignore malformed frames
+        /* ignore malformed frames */
       }
     };
 
@@ -400,8 +417,19 @@ export function VoiceDemoWorkspace() {
   }
 
   function stopSession() {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ event: 'stop' }));
+    }
     wsRef.current?.close();
     wsRef.current = null;
+    activeSourcesRef.current.forEach((s) => {
+      try {
+        s.stop();
+      } catch {
+        /* already stopped */
+      }
+    });
+    activeSourcesRef.current = [];
     nextPlayTimeRef.current = 0;
     stopMic();
     setConnectionState('idle');
@@ -409,20 +437,32 @@ export function VoiceDemoWorkspace() {
 
   async function startMic(ws: WebSocket) {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
       streamRef.current = stream;
-      const ctx = new AudioContext({ sampleRate: 24000 });
+      // 8 kHz matches G.711 μ-law — no resampling needed.
+      const ctx = new AudioContext({ sampleRate: 8000 });
       audioCtxRef.current = ctx;
       const source = ctx.createMediaStreamSource(stream);
-      const processor = ctx.createScriptProcessor(4096, 1, 1);
+      const processor = ctx.createScriptProcessor(2048, 1, 1);
       processorRef.current = processor;
       processor.onaudioprocess = (e) => {
         if (ws.readyState !== WebSocket.OPEN) {
           return;
         }
         const float32 = e.inputBuffer.getChannelData(0);
-        const b64 = arrayBufferToBase64(float32ToPcm16(float32).buffer);
-        ws.send(JSON.stringify({ type: 'audio', data: b64 }));
+        const mulaw = encodeMuLaw(float32ToPcm16(float32));
+        ws.send(
+          JSON.stringify({
+            event: 'media',
+            media: { payload: arrayBufferToBase64(mulaw.buffer) },
+          }),
+        );
       };
       source.connect(processor);
       processor.connect(ctx.destination);
@@ -450,13 +490,19 @@ export function VoiceDemoWorkspace() {
     if (!ctx) {
       return;
     }
-    const pcm16 = new Int16Array(base64ToArrayBuffer(b64));
-    const float32 = pcm16ToFloat32(pcm16);
-    const buffer = ctx.createBuffer(1, float32.length, 24000);
+    const mulaw = new Uint8Array(base64ToArrayBuffer(b64));
+    const float32 = pcm16ToFloat32(decodeMuLaw(mulaw));
+    const buffer = ctx.createBuffer(1, float32.length, 8000);
     buffer.copyToChannel(float32, 0);
     const src = ctx.createBufferSource();
     src.buffer = buffer;
     src.connect(ctx.destination);
+    activeSourcesRef.current.push(src);
+    src.onended = () => {
+      activeSourcesRef.current = activeSourcesRef.current.filter(
+        (s) => s !== src,
+      );
+    };
     const startTime = Math.max(ctx.currentTime, nextPlayTimeRef.current);
     src.start(startTime);
     nextPlayTimeRef.current = startTime + buffer.duration;
@@ -836,6 +882,40 @@ function pcm16ToFloat32(pcm16: Int16Array): Float32Array {
   const out = new Float32Array(pcm16.length);
   for (let i = 0; i < pcm16.length; i++) {
     out[i] = pcm16[i] / (pcm16[i] < 0 ? 0x8000 : 0x7fff);
+  }
+  return out;
+}
+
+// G.711 μ-law encoding/decoding (ITU-T G.711)
+function encodeMuLaw(pcm16: Int16Array): Uint8Array {
+  const BIAS = 33;
+  const CLIP = 32635;
+  const out = new Uint8Array(pcm16.length);
+  for (let i = 0; i < pcm16.length; i++) {
+    let s = pcm16[i];
+    const sign = s < 0 ? 0x80 : 0;
+    if (s < 0) s = -s;
+    if (s > CLIP) s = CLIP;
+    s += BIAS;
+    let exp = 7;
+    for (let mask = 0x4000; (s & mask) === 0 && exp > 0; exp--, mask >>= 1) {
+      /* find highest set bit */
+    }
+    const mantissa = (s >> (exp + 3)) & 0x0f;
+    out[i] = ~(sign | (exp << 4) | mantissa) & 0xff;
+  }
+  return out;
+}
+
+function decodeMuLaw(mulaw: Uint8Array): Int16Array {
+  const out = new Int16Array(mulaw.length);
+  for (let i = 0; i < mulaw.length; i++) {
+    const b = ~mulaw[i];
+    const sign = b & 0x80;
+    const exp = (b >> 4) & 0x07;
+    const mantissa = b & 0x0f;
+    const s = ((mantissa | 0x10) << (exp + 3)) - 33;
+    out[i] = sign ? -s : s;
   }
   return out;
 }
