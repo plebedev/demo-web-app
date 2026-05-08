@@ -1,4 +1,4 @@
-export const experienceIds = ['messy-notes', 'rag-demo'] as const;
+export const experienceIds = ['messy-notes', 'rag-demo', 'voice-demo'] as const;
 
 export type ExperienceId = (typeof experienceIds)[number];
 
@@ -31,6 +31,15 @@ export const fallbackExperiences: Experience[] = [
     description:
       'A retrieval-grounded demo workspace with persona configuration and scoped document setup.',
     route: '/rag-demo',
+    available: true,
+    invite_request_available: true,
+  },
+  {
+    id: 'voice-demo',
+    label: 'Voice Demo',
+    description:
+      'A real-time voice AI advisor that helps employers assess workforce development readiness.',
+    route: '/voice-demo',
     available: true,
     invite_request_available: true,
   },

@@ -69,6 +69,38 @@ Defaults:
 - frontend remains focused on UI + BFF concerns
 - webhook/public backend exposure, if needed later, should be handled in the backend repo
 
+## Verification
+
+Run `task verify` before considering any change complete. It runs:
+
+```bash
+task verify   # npm run lint + typecheck + test + next build
+```
+
+Do not mark work done if lint or type-check errors remain.
+
+## UI and component conventions
+
+### New experience workspaces
+When adding a new protected experience workspace, it must be visually and structurally
+consistent with the existing ones (messy-notes, rag-demo). Read an existing workspace
+component before writing a new one. Use the same layout skeleton, the same class names,
+and the same patterns for tabs, forms, error states, and data fetching.
+
+### Styling
+- Always `className` referencing classes from `src/app/globals.css`. Never `style={{}}`.
+- `src/app/globals.css` is the single CSS file — no CSS modules, no Tailwind.
+- When a new experience needs layout-specific classes, add them to `globals.css` following
+  the naming conventions already present.
+
+### Tests
+- Every component `foo.tsx` must have `foo.test.tsx` alongside it.
+- Stack: `vitest` + `@testing-library/react`.
+- `vi.mock` `next/navigation` and `@/hooks/use-protected-access` at module level.
+- `vi.stubGlobal('fetch', vi.fn(...))` in `beforeEach`, `vi.restoreAllMocks()` to clean up.
+- `cleanup()` in `afterEach`.
+- Cover: renders without crash, tab switching, form fill + submit, API call assertions, error state.
+
 ## When making changes
 
 - If you change backend URL/env conventions, check Helm values, `.env.example`, and BFF config together
