@@ -14,7 +14,7 @@ import { useRouter } from 'next/navigation';
 import { clearStoredAccessToken } from '@/lib/access-token';
 import { useProtectedAccess } from '@/hooks/use-protected-access';
 
-type RagTab = 'chat' | 'configuration';
+type RagTab = 'chat' | 'configuration' | 'about';
 
 type RagPersona = {
   id: number;
@@ -859,7 +859,15 @@ export function RagWorkspace() {
           >
             Configuration
           </button>
+          <button
+            className={activeTab === 'about' ? 'topnav-link-active' : ''}
+            onClick={() => setActiveTab('about')}
+            type="button"
+          >
+            About
+          </button>
           <Link href="/">Access hub</Link>
+          <Link href="/architecture">Architecture</Link>
           <Link href="/privacy">Privacy</Link>
           <Link href="/terms">Terms</Link>
         </nav>
@@ -1059,6 +1067,371 @@ export function RagWorkspace() {
                 </button>
               </form>
             </section>
+          </div>
+        </section>
+      ) : activeTab === 'about' ? (
+        <section className="section-grid">
+          <div className="section-heading">
+            <p className="eyebrow">RAG Demo — about</p>
+            <h2>Persona-scoped retrieval with grounded answers.</h2>
+            <p className="lede lede--compact">
+              Documents are chunked and embedded at ingest time. Queries
+              retrieve only from the active persona&#39;s linked documents and
+              The LLM answers with source citations.
+            </p>
+          </div>
+
+          <div className="architecture-grid">
+            <article className="section-card section-card--tall">
+              <p className="card-kicker">How it works</p>
+              <svg
+                aria-label="RAG retrieval flow diagram"
+                viewBox="0 0 340 140"
+                width="100%"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <defs>
+                  <marker
+                    id="rag-arr"
+                    markerHeight="5"
+                    markerWidth="5"
+                    orient="auto"
+                    refX="5"
+                    refY="2.5"
+                    viewBox="0 0 5 5"
+                  >
+                    <path d="M0,0 L5,2.5 L0,5 Z" fill="#64748b" />
+                  </marker>
+                </defs>
+                <rect
+                  fill="#f8f9ff"
+                  height="140"
+                  rx="6"
+                  width="340"
+                  x="0"
+                  y="0"
+                />
+
+                {/* ── Ingest row (y=18) ─────────────────────────────── */}
+                <text fill="#7c3aed" fontSize="7" fontWeight="600" x="8" y="14">
+                  INGEST
+                </text>
+                <rect
+                  fill="#eff6ff"
+                  height="26"
+                  rx="4"
+                  stroke="#3b82f6"
+                  strokeWidth="1.5"
+                  width="58"
+                  x="8"
+                  y="18"
+                />
+                <text
+                  fill="#1e293b"
+                  fontSize="8"
+                  fontWeight="600"
+                  textAnchor="middle"
+                  x="37"
+                  y="35"
+                >
+                  Upload
+                </text>
+                <line
+                  markerEnd="url(#rag-arr)"
+                  stroke="#64748b"
+                  strokeWidth="1"
+                  x1="66"
+                  x2="78"
+                  y1="31"
+                  y2="31"
+                />
+                <rect
+                  fill="#eff6ff"
+                  height="26"
+                  rx="4"
+                  stroke="#3b82f6"
+                  strokeWidth="1.5"
+                  width="58"
+                  x="80"
+                  y="18"
+                />
+                <text
+                  fill="#1e293b"
+                  fontSize="8"
+                  fontWeight="600"
+                  textAnchor="middle"
+                  x="109"
+                  y="35"
+                >
+                  Chunk
+                </text>
+                <line
+                  markerEnd="url(#rag-arr)"
+                  stroke="#64748b"
+                  strokeWidth="1"
+                  x1="138"
+                  x2="150"
+                  y1="31"
+                  y2="31"
+                />
+                <rect
+                  fill="#ecfdf5"
+                  height="26"
+                  rx="4"
+                  stroke="#059669"
+                  strokeWidth="1.5"
+                  width="58"
+                  x="152"
+                  y="18"
+                />
+                <text
+                  fill="#1e293b"
+                  fontSize="8"
+                  fontWeight="600"
+                  textAnchor="middle"
+                  x="181"
+                  y="35"
+                >
+                  Embed
+                </text>
+                <line
+                  markerEnd="url(#rag-arr)"
+                  stroke="#64748b"
+                  strokeWidth="1"
+                  x1="210"
+                  x2="222"
+                  y1="31"
+                  y2="31"
+                />
+                <rect
+                  fill="#ecfdf5"
+                  height="26"
+                  rx="4"
+                  stroke="#059669"
+                  strokeWidth="1.5"
+                  width="72"
+                  x="224"
+                  y="18"
+                />
+                <text
+                  fill="#1e293b"
+                  fontSize="8"
+                  fontWeight="600"
+                  textAnchor="middle"
+                  x="260"
+                  y="31"
+                >
+                  Vector store
+                </text>
+                <text
+                  fill="#64748b"
+                  fontSize="6.5"
+                  textAnchor="middle"
+                  x="260"
+                  y="40"
+                >
+                  (per persona)
+                </text>
+
+                {/* ── Query row (y=78) ──────────────────────────────── */}
+                <text fill="#059669" fontSize="7" fontWeight="600" x="8" y="74">
+                  QUERY
+                </text>
+                <rect
+                  fill="#fff7ed"
+                  height="26"
+                  rx="4"
+                  stroke="#ea580c"
+                  strokeWidth="1.5"
+                  width="58"
+                  x="8"
+                  y="78"
+                />
+                <text
+                  fill="#1e293b"
+                  fontSize="8"
+                  fontWeight="600"
+                  textAnchor="middle"
+                  x="37"
+                  y="95"
+                >
+                  Question
+                </text>
+                <line
+                  markerEnd="url(#rag-arr)"
+                  stroke="#64748b"
+                  strokeWidth="1"
+                  x1="66"
+                  x2="78"
+                  y1="91"
+                  y2="91"
+                />
+                <rect
+                  fill="#fff7ed"
+                  height="26"
+                  rx="4"
+                  stroke="#ea580c"
+                  strokeWidth="1.5"
+                  width="58"
+                  x="80"
+                  y="78"
+                />
+                <text
+                  fill="#1e293b"
+                  fontSize="8"
+                  fontWeight="600"
+                  textAnchor="middle"
+                  x="109"
+                  y="95"
+                >
+                  Retrieve
+                </text>
+                <line
+                  markerEnd="url(#rag-arr)"
+                  stroke="#64748b"
+                  strokeWidth="1"
+                  x1="138"
+                  x2="150"
+                  y1="91"
+                  y2="91"
+                />
+                <rect
+                  fill="#fdf2f8"
+                  height="26"
+                  rx="4"
+                  stroke="#be185d"
+                  strokeWidth="1.5"
+                  width="58"
+                  x="152"
+                  y="78"
+                />
+                <text
+                  fill="#1e293b"
+                  fontSize="8"
+                  fontWeight="600"
+                  textAnchor="middle"
+                  x="181"
+                  y="95"
+                >
+                  LLM API
+                </text>
+                <line
+                  markerEnd="url(#rag-arr)"
+                  stroke="#64748b"
+                  strokeWidth="1"
+                  x1="210"
+                  x2="222"
+                  y1="91"
+                  y2="91"
+                />
+                <rect
+                  fill="#fdf2f8"
+                  height="26"
+                  rx="4"
+                  stroke="#be185d"
+                  strokeWidth="1.5"
+                  width="72"
+                  x="224"
+                  y="78"
+                />
+                <text
+                  fill="#1e293b"
+                  fontSize="8"
+                  fontWeight="600"
+                  textAnchor="middle"
+                  x="260"
+                  y="90"
+                >
+                  Answer
+                </text>
+                <text
+                  fill="#64748b"
+                  fontSize="6.5"
+                  textAnchor="middle"
+                  x="260"
+                  y="100"
+                >
+                  + citations
+                </text>
+
+                {/* Vector store feeds Retrieve (dashed) */}
+                <line
+                  stroke="#059669"
+                  strokeDasharray="3,2"
+                  strokeWidth="1"
+                  x1="260"
+                  x2="109"
+                  y1="44"
+                  y2="78"
+                />
+              </svg>
+            </article>
+
+            <article className="section-card section-card--tall">
+              <p className="card-kicker">What it is</p>
+              <ul className="section-list">
+                <li>
+                  Personas are configured with instructions and linked to
+                  specific documents.
+                </li>
+                <li>
+                  Documents are chunked and embedded on ingest; retrieval is
+                  scoped to the active persona.
+                </li>
+                <li>
+                  Answers cite the retrieved chunks with source, title, and
+                  snippet.
+                </li>
+                <li>
+                  Each conversation has a 10-turn limit and is linked to one
+                  persona.
+                </li>
+              </ul>
+            </article>
+
+            <article className="section-card">
+              <p className="card-kicker">Conversation model</p>
+              <ul className="section-list">
+                <li>10-turn limit per conversation.</li>
+                <li>
+                  Each conversation is scoped to the persona selected at
+                  creation time.
+                </li>
+                <li>
+                  Retrieval queries only the documents linked to that persona.
+                </li>
+                <li>
+                  Conversations with exhausted turns show a status indicator and
+                  cannot receive new messages.
+                </li>
+              </ul>
+            </article>
+
+            <article className="section-card">
+              <p className="card-kicker">Guardrails</p>
+              <ul className="section-list">
+                <li>
+                  Accepted file types: .txt and .pdf with extractable text.
+                </li>
+                <li>
+                  Documents are deduplicated by content hash across all uploads.
+                </li>
+                <li>
+                  Removing a document from a persona removes only the
+                  persona-document link; the chunks are retained for other
+                  personas.
+                </li>
+              </ul>
+            </article>
+
+            <article className="section-card">
+              <p className="card-kicker">Not yet implemented</p>
+              <ul className="section-list">
+                <li>Cross-persona retrieval or shared document pools.</li>
+                <li>Document search or browse across all uploaded content.</li>
+                <li>Document sharing or transfer between personas.</li>
+              </ul>
+            </article>
           </div>
         </section>
       ) : (

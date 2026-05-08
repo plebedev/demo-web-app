@@ -66,6 +66,7 @@ function ShellFrame({
         <nav className="topnav" aria-label="Primary">
           <a href="#experiences">Experiences</a>
           <a href="#guardrails">Guardrails</a>
+          <Link href="/architecture">Architecture</Link>
           <Link href="/privacy">Privacy</Link>
           <Link href="/terms">Terms</Link>
         </nav>

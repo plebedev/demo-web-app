@@ -17,8 +17,8 @@ export default function PrivacyPolicyPage() {
         </Link>
 
         <nav className="topnav" aria-label="Privacy navigation">
-          <Link href="/">Invite shell</Link>
-          <Link href="/messy-notes">Workspace</Link>
+          <Link href="/">Access hub</Link>
+          <Link href="/architecture">Architecture</Link>
           <Link href="/terms">Terms</Link>
         </nav>
 

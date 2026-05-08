@@ -510,4 +510,34 @@ describe('RagWorkspace', () => {
       expect.objectContaining({ method: 'POST' }),
     );
   });
+
+  it('renders about tab content when About is clicked', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith('/api/bff/rag/personas')) {
+          return new Response(JSON.stringify({ personas: [] }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        if (url.endsWith('/api/bff/rag/conversations')) {
+          return new Response(JSON.stringify({ conversations: [] }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        throw new Error(`Unexpected fetch URL: ${url}`);
+      }),
+    );
+
+    render(<RagWorkspace />);
+    fireEvent.click(screen.getByRole('button', { name: 'About' }));
+
+    expect(await screen.findByText('RAG Demo — about')).toBeInTheDocument();
+    expect(
+      screen.getByText('Persona-scoped retrieval with grounded answers.'),
+    ).toBeInTheDocument();
+  });
 });

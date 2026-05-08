@@ -47,7 +47,8 @@ export function ProtectedDemoShell({
           >
             About
           </Link>
-          <Link href="/">Invite shell</Link>
+          <Link href="/">Access hub</Link>
+          <Link href="/architecture">Architecture</Link>
           <Link href="/privacy">Privacy</Link>
           <Link href="/terms">Terms</Link>
         </nav>
