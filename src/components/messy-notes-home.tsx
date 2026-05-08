@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+import { InlineAccessPanel } from '@/components/inline-access-panel';
 import { ProtectedDemoShell } from '@/components/protected-demo-shell';
 import { useProtectedAccess } from '@/hooks/use-protected-access';
 import { DemoRun, DemoRunListResponse, formatRunStatus } from '@/lib/demo-runs';
@@ -19,7 +20,12 @@ function authHeaders(accessToken: string): HeadersInit {
 
 export function MessyNotesHome() {
   const router = useRouter();
-  const { accessToken, isChecking } = useProtectedAccess('messy-notes');
+  const { accessToken: verifiedToken, isChecking } = useProtectedAccess(
+    'messy-notes',
+    { redirect: false },
+  );
+  const [tokenOverride, setTokenOverride] = useState<string | null>(null);
+  const accessToken = tokenOverride ?? verifiedToken;
   const [runs, setRuns] = useState<DemoRun[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -109,11 +115,22 @@ export function MessyNotesHome() {
 
   if (isChecking) {
     return (
-      <ProtectedDemoShell activePath="workspace">
+      <ProtectedDemoShell activePath="workspace" hasAccess={false}>
         <section className="workspace-hero">
-          <p className="eyebrow">Protected workspace</p>
-          <h1>Checking your saved demo access.</h1>
+          <p className="eyebrow">Messy Notes</p>
+          <h1>Loading…</h1>
         </section>
+      </ProtectedDemoShell>
+    );
+  }
+
+  if (!accessToken) {
+    return (
+      <ProtectedDemoShell activePath="workspace" hasAccess={false}>
+        <InlineAccessPanel
+          experienceId="messy-notes"
+          onAccessGranted={setTokenOverride}
+        />
       </ProtectedDemoShell>
     );
   }

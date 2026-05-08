@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import { clearStoredAccessToken } from '@/lib/access-token';
+import { InlineAccessPanel } from '@/components/inline-access-panel';
 import { useProtectedAccess } from '@/hooks/use-protected-access';
 
 type VoiceTab = 'test' | 'configuration' | 'history' | 'about';
@@ -89,7 +90,12 @@ function authHeaders(token: string): HeadersInit {
 
 export function VoiceDemoWorkspace() {
   const router = useRouter();
-  const { accessToken, isChecking } = useProtectedAccess('voice-demo');
+  const { accessToken: verifiedToken, isChecking } = useProtectedAccess(
+    'voice-demo',
+    { redirect: false },
+  );
+  const [tokenOverride, setTokenOverride] = useState<string | null>(null);
+  const accessToken = tokenOverride ?? verifiedToken;
   const [activeTab, setActiveTab] = useState<VoiceTab>('test');
 
   // Configuration state
@@ -758,7 +764,7 @@ export function VoiceDemoWorkspace() {
             <h1>Checking your saved voice access.</h1>
           </div>
         </section>
-      ) : activeTab === 'test' ? (
+      ) : activeTab === 'test' && accessToken !== null ? (
         <section className="section-grid">
           <div className="section-heading">
             <p className="eyebrow">Test</p>
@@ -860,7 +866,12 @@ export function VoiceDemoWorkspace() {
             </section>
           </div>
         </section>
-      ) : activeTab === 'configuration' ? (
+      ) : activeTab === 'test' ? (
+        <InlineAccessPanel
+          experienceId="voice-demo"
+          onAccessGranted={setTokenOverride}
+        />
+      ) : activeTab === 'configuration' && accessToken !== null ? (
         <section className="section-grid">
           <div className="section-heading">
             <p className="eyebrow">Configuration</p>
@@ -1091,6 +1102,11 @@ export function VoiceDemoWorkspace() {
             </div>
           </div>
         </section>
+      ) : activeTab === 'configuration' ? (
+        <InlineAccessPanel
+          experienceId="voice-demo"
+          onAccessGranted={setTokenOverride}
+        />
       ) : activeTab === 'about' ? (
         <section className="section-grid">
           <div className="section-heading">
@@ -1463,7 +1479,7 @@ export function VoiceDemoWorkspace() {
             </article>
           </div>
         </section>
-      ) : (
+      ) : accessToken !== null ? (
         <section className="section-grid">
           <div className="section-heading">
             <p className="eyebrow">History</p>
@@ -1564,6 +1580,11 @@ export function VoiceDemoWorkspace() {
             )}
           </div>
         </section>
+      ) : (
+        <InlineAccessPanel
+          experienceId="voice-demo"
+          onAccessGranted={setTokenOverride}
+        />
       )}
     </main>
   );

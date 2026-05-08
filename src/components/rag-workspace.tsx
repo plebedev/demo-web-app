@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import { clearStoredAccessToken } from '@/lib/access-token';
+import { InlineAccessPanel } from '@/components/inline-access-panel';
 import { useProtectedAccess } from '@/hooks/use-protected-access';
 
 type RagTab = 'chat' | 'configuration' | 'about';
@@ -223,7 +224,12 @@ function MarkdownPreview({ value }: { value: string }) {
 
 export function RagWorkspace() {
   const router = useRouter();
-  const { accessToken, isChecking } = useProtectedAccess('rag-demo');
+  const { accessToken: verifiedToken, isChecking } = useProtectedAccess(
+    'rag-demo',
+    { redirect: false },
+  );
+  const [tokenOverride, setTokenOverride] = useState<string | null>(null);
+  const accessToken = tokenOverride ?? verifiedToken;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [activeTab, setActiveTab] = useState<RagTab>('configuration');
   const [personas, setPersonas] = useState<RagPersona[]>([]);
@@ -885,10 +891,10 @@ export function RagWorkspace() {
         <section className="workspace-hero">
           <div className="hero-copy">
             <p className="eyebrow">RAG demo</p>
-            <h1>Checking your saved RAG access.</h1>
+            <h1>Loading…</h1>
           </div>
         </section>
-      ) : activeTab === 'chat' ? (
+      ) : activeTab === 'chat' && accessToken !== null ? (
         <section className="section-grid">
           <div className="section-heading">
             <p className="eyebrow">Chat</p>
@@ -1434,7 +1440,12 @@ export function RagWorkspace() {
             </article>
           </div>
         </section>
-      ) : (
+      ) : activeTab === 'chat' ? (
+        <InlineAccessPanel
+          experienceId="rag-demo"
+          onAccessGranted={setTokenOverride}
+        />
+      ) : accessToken !== null ? (
         <section className="section-grid">
           <div className="section-heading">
             <p className="eyebrow">Configuration</p>
@@ -1711,6 +1722,11 @@ export function RagWorkspace() {
             </section>
           </div>
         </section>
+      ) : (
+        <InlineAccessPanel
+          experienceId="rag-demo"
+          onAccessGranted={setTokenOverride}
+        />
       )}
     </main>
   );

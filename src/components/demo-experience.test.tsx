@@ -90,105 +90,6 @@ describe('DemoExperience', () => {
     });
   });
 
-  it('submits an invite request without redeeming an invitation code', async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
-
-      if (url.endsWith('/api/bff/access/invite-requests')) {
-        return new Response(
-          JSON.stringify({
-            id: 12,
-            status: 'submitted',
-            message:
-              'Invite request received. Your invite is being prepared and emailed.',
-          }),
-          {
-            status: 201,
-            headers: { 'Content-Type': 'application/json' },
-          },
-        );
-      }
-
-      throw new Error(`Unexpected fetch URL: ${url}`);
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    render(<DemoExperience />);
-
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Request invite' }),
-    );
-    expect(
-      screen.getByRole('dialog', { name: 'Request Messy Notes' }),
-    ).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Name'), {
-      target: { value: 'Ada Lovelace' },
-    });
-    fireEvent.change(screen.getByLabelText('Email'), {
-      target: { value: 'ada@example.com' },
-    });
-    fireEvent.change(screen.getByLabelText('Short reason'), {
-      target: { value: 'I want to evaluate the bounded workflow.' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Send request' }));
-
-    expect(
-      await screen.findByText(
-        'Invite request received. Your invite is being prepared and emailed.',
-      ),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(replaceMock).not.toHaveBeenCalled();
-    expect(fetchMock).toHaveBeenCalledWith(
-      '/api/bff/access/invite-requests',
-      expect.objectContaining({ method: 'POST' }),
-    );
-    const inviteRequestCall = (
-      fetchMock.mock.calls as [RequestInfo | URL, RequestInit?][]
-    ).find(([url]) => String(url).endsWith('/api/bff/access/invite-requests'));
-    const requestBody = JSON.parse(inviteRequestCall?.[1]?.body as string);
-    expect(requestBody.experience_id).toBe('messy-notes');
-  });
-
-  it('shows an invite request validation error', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = String(input);
-
-        if (url.endsWith('/api/bff/access/invite-requests')) {
-          return new Response(
-            JSON.stringify({ detail: 'Reason is too vague.' }),
-            {
-              status: 422,
-              headers: { 'Content-Type': 'application/json' },
-            },
-          );
-        }
-
-        throw new Error(`Unexpected fetch URL: ${url}`);
-      }),
-    );
-
-    render(<DemoExperience />);
-
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Request invite' }),
-    );
-    fireEvent.change(screen.getByLabelText('Name'), {
-      target: { value: 'Ada Lovelace' },
-    });
-    fireEvent.change(screen.getByLabelText('Email'), {
-      target: { value: 'ada@example.com' },
-    });
-    fireEvent.change(screen.getByLabelText('Short reason'), {
-      target: { value: 'I want to evaluate the bounded workflow.' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Send request' }));
-
-    expect(await screen.findByText('Reason is too vague.')).toBeInTheDocument();
-  });
-
   it('returns to invite entry when a stored token fails verification', async () => {
     window.localStorage.setItem(
       ACCESS_TOKEN_STORAGE_KEY,
@@ -231,46 +132,11 @@ describe('DemoExperience', () => {
     });
   });
 
-  it('shows an accessible experience dropdown for a valid stored token', async () => {
-    window.localStorage.setItem(
-      ACCESS_TOKEN_STORAGE_KEY,
-      JSON.stringify({
-        'messy-notes': {
-          accessToken: 'valid-token',
-          experienceId: 'messy-notes',
-          expiresAt: '2026-12-31T00:00:00Z',
-        },
-      }),
-    );
-
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = String(input);
-
-        if (url.endsWith('/api/bff/access/verify')) {
-          return new Response(
-            JSON.stringify({
-              experience_id: 'messy-notes',
-              expires_at: '2026-12-31T00:00:00Z',
-            }),
-            {
-              status: 200,
-              headers: { 'Content-Type': 'application/json' },
-            },
-          );
-        }
-
-        throw new Error(`Unexpected fetch URL: ${url}`);
-      }),
-    );
-
+  it('shows experience selector and navigates on Go', async () => {
     render(<DemoExperience />);
 
     expect(await screen.findByText('Go to an experience')).toBeInTheDocument();
-    expect(screen.getAllByLabelText('Experience')[0]).toHaveValue(
-      'messy-notes',
-    );
+    expect(screen.getByLabelText('Experience')).toHaveValue('messy-notes');
     fireEvent.click(screen.getByRole('button', { name: 'Go' }));
 
     expect(pushMock).toHaveBeenCalledWith('/messy-notes');

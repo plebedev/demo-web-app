@@ -5,21 +5,23 @@ import { ProtectedDemoShell } from '@/components/protected-demo-shell';
 import { useProtectedAccess } from '@/hooks/use-protected-access';
 
 export function MessyNotesAbout() {
-  const { isChecking } = useProtectedAccess('messy-notes');
+  const { accessToken, isChecking } = useProtectedAccess('messy-notes', {
+    redirect: false,
+  });
 
   if (isChecking) {
     return (
-      <ProtectedDemoShell activePath="about">
+      <ProtectedDemoShell activePath="about" hasAccess={false}>
         <section className="workspace-hero">
-          <p className="eyebrow">Protected about page</p>
-          <h1>Checking your saved demo access.</h1>
+          <p className="eyebrow">Messy Notes</p>
+          <h1>Loading…</h1>
         </section>
       </ProtectedDemoShell>
     );
   }
 
   return (
-    <ProtectedDemoShell activePath="about">
+    <ProtectedDemoShell activePath="about" hasAccess={!!accessToken}>
       <section className="section-grid">
         <div className="section-heading">
           <p className="eyebrow">Messy Notes — about</p>

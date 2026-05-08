@@ -1,12 +1,6 @@
 'use client';
 
-import React, {
-  FormEvent,
-  ReactNode,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import React, { FormEvent, ReactNode, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -15,8 +9,6 @@ import {
   isHardAccessVerificationFailure,
   persistAccessToken,
   readStoredAccessTokens,
-  StoredAccessToken,
-  StoredAccessTokens,
 } from '@/lib/access-token';
 import {
   Experience,
@@ -39,11 +31,6 @@ type AccessRedeemPayload = {
 };
 
 type AccessState = 'checking' | 'ready';
-type InviteRequestForm = {
-  name: string;
-  email: string;
-  reason: string;
-};
 
 function ShellFrame({
   accessState,
@@ -86,26 +73,10 @@ export function DemoExperience() {
   const [accessState, setAccessState] = useState<AccessState>('checking');
   const [experiences, setExperiences] =
     useState<Experience[]>(fallbackExperiences);
-  const [tokens, setTokens] = useState<StoredAccessTokens>({});
-  const [selectedAccessibleExperienceId, setSelectedAccessibleExperienceId] =
-    useState<ExperienceId>('messy-notes');
-  const [selectedLockedExperienceId, setSelectedLockedExperienceId] =
+  const [selectedExperienceId, setSelectedExperienceId] =
     useState<ExperienceId>('messy-notes');
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [inviteRequest, setInviteRequest] = useState<InviteRequestForm>({
-    name: '',
-    email: '',
-    reason: '',
-  });
-  const [inviteRequestError, setInviteRequestError] = useState<string | null>(
-    null,
-  );
-  const [inviteRequestNotice, setInviteRequestNotice] = useState<string | null>(
-    null,
-  );
-  const [inviteRequestSubmitting, setInviteRequestSubmitting] = useState(false);
-  const [requestFormOpen, setRequestFormOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -132,50 +103,40 @@ export function DemoExperience() {
 
     async function verifyStoredTokens() {
       const storedTokens = readStoredAccessTokens();
-      const verifiedEntries = await Promise.all(
+      await Promise.all(
         Object.entries(storedTokens).map(
           async ([experienceId, storedToken]) => {
             try {
               const response = await fetch('/api/bff/access/verify', {
                 cache: 'no-store',
-                headers: {
-                  Authorization: `Bearer ${storedToken.accessToken}`,
-                },
+                headers: { Authorization: `Bearer ${storedToken.accessToken}` },
               });
               if (!response.ok) {
                 if (isHardAccessVerificationFailure(response.status)) {
                   clearStoredAccessToken(experienceId as ExperienceId);
-                  return null;
                 }
-                return [experienceId as ExperienceId, storedToken] as const;
+                return;
               }
               const payload =
                 (await response.json()) as AccessVerificationPayload;
               if (payload.experience_id !== experienceId) {
                 clearStoredAccessToken(experienceId as ExperienceId);
-                return null;
+                return;
               }
               persistAccessToken({
                 accessToken: storedToken.accessToken,
                 experienceId: payload.experience_id,
                 expiresAt: payload.expires_at,
               });
-              return [payload.experience_id, storedToken] as const;
             } catch {
-              return [experienceId as ExperienceId, storedToken] as const;
+              // transient failure — keep the stored token as-is
             }
           },
         ),
       );
-
       if (!active) {
         return;
       }
-      const verifiedTokens = verifiedEntries.filter(
-        (entry): entry is readonly [ExperienceId, StoredAccessToken] =>
-          entry !== null,
-      );
-      setTokens(Object.fromEntries(verifiedTokens));
       setAccessState('ready');
     }
 
@@ -187,50 +148,14 @@ export function DemoExperience() {
     };
   }, []);
 
-  const unlockedExperienceIds = useMemo(
-    () => new Set(Object.keys(tokens) as ExperienceId[]),
-    [tokens],
-  );
-  const accessibleExperiences = useMemo(
-    () =>
-      experiences.filter((experience) =>
-        unlockedExperienceIds.has(experience.id),
-      ),
-    [experiences, unlockedExperienceIds],
-  );
-  const lockedExperiences = useMemo(
-    () =>
-      experiences.filter(
-        (experience) =>
-          experience.available && !unlockedExperienceIds.has(experience.id),
-      ),
-    [experiences, unlockedExperienceIds],
-  );
-  const selectedLockedExperience = lockedExperiences.find(
-    (experience) => experience.id === selectedLockedExperienceId,
-  );
-
   useEffect(() => {
     if (
-      accessibleExperiences.length > 0 &&
-      !accessibleExperiences.some(
-        (experience) => experience.id === selectedAccessibleExperienceId,
-      )
+      experiences.length > 0 &&
+      !experiences.some((e) => e.id === selectedExperienceId)
     ) {
-      setSelectedAccessibleExperienceId(accessibleExperiences[0].id);
+      setSelectedExperienceId(experiences[0].id);
     }
-  }, [accessibleExperiences, selectedAccessibleExperienceId]);
-
-  useEffect(() => {
-    if (
-      lockedExperiences.length > 0 &&
-      !lockedExperiences.some(
-        (experience) => experience.id === selectedLockedExperienceId,
-      )
-    ) {
-      setSelectedLockedExperienceId(lockedExperiences[0].id);
-    }
-  }, [lockedExperiences, selectedLockedExperienceId]);
+  }, [experiences, selectedExperienceId]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -259,7 +184,6 @@ export function DemoExperience() {
         experienceId: payload.experience_id,
         expiresAt: payload.expires_at,
       });
-      setTokens(readStoredAccessTokens());
       setCode('');
       router.replace(payload.redirect_path);
     } catch (submitError) {
@@ -270,61 +194,6 @@ export function DemoExperience() {
       );
     } finally {
       setSubmitting(false);
-    }
-  }
-
-  function handleInviteRequestChange(
-    field: keyof InviteRequestForm,
-    value: string,
-  ) {
-    setInviteRequest((current) => ({ ...current, [field]: value }));
-  }
-
-  async function handleInviteRequestSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setInviteRequestSubmitting(true);
-    setInviteRequestError(null);
-    setInviteRequestNotice(null);
-
-    try {
-      const response = await fetch('/api/bff/access/invite-requests', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...inviteRequest,
-          experience_id: selectedLockedExperienceId,
-        }),
-      });
-
-      const payload = (await response.json().catch(() => null)) as {
-        detail?: string;
-        message?: string;
-      } | null;
-
-      if (!response.ok) {
-        throw new Error(
-          typeof payload?.detail === 'string'
-            ? payload.detail
-            : 'Unable to submit invite request.',
-        );
-      }
-
-      setInviteRequest({ name: '', email: '', reason: '' });
-      setInviteRequestNotice(
-        payload?.message ||
-          'Invite request received. Your invite is being prepared and emailed.',
-      );
-      setRequestFormOpen(false);
-    } catch (requestError) {
-      setInviteRequestError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Unable to submit invite request.',
-      );
-    } finally {
-      setInviteRequestSubmitting(false);
     }
   }
 
@@ -386,104 +255,57 @@ export function DemoExperience() {
       <section className="section-grid access-hub-experiences" id="experiences">
         <div className="section-heading access-hub-section-heading">
           <p className="eyebrow">Experiences</p>
-          <h2>Choose what you need.</h2>
+          <h2>Go to an experience.</h2>
           <p className="lede lede--compact">
-            Use existing access to open a demo, or request access to one this
-            browser has not unlocked yet.
+            Each experience is publicly accessible. An invitation code unlocks
+            the full workspace.
           </p>
         </div>
 
         <div className="experience-actions">
-          {accessibleExperiences.length > 0 ? (
-            <article className="section-card experience-action-card">
-              <div>
-                <p className="card-kicker">Available to you</p>
-                <h3>Go to an experience</h3>
-                <p className="section-detail">
-                  This browser has a valid signed token for these experiences.
-                </p>
-              </div>
-              <div className="experience-control-row">
-                <label className="field-label" htmlFor="accessible-experience">
-                  Experience
-                </label>
-                <select
-                  className="select-input"
-                  id="accessible-experience"
-                  onChange={(event) =>
-                    setSelectedAccessibleExperienceId(
-                      event.target.value as ExperienceId,
-                    )
+          <article className="section-card experience-action-card">
+            <div>
+              <p className="card-kicker">Demo experiences</p>
+              <h3>Go to an experience</h3>
+              <p className="section-detail">
+                Open an experience to explore it or redeem an invitation code
+                inline.
+              </p>
+            </div>
+            <div className="experience-control-row">
+              <label className="field-label" htmlFor="experience-select">
+                Experience
+              </label>
+              <select
+                className="select-input"
+                id="experience-select"
+                onChange={(event) =>
+                  setSelectedExperienceId(event.target.value as ExperienceId)
+                }
+                value={selectedExperienceId}
+              >
+                {experiences.map((experience) => (
+                  <option key={experience.id} value={experience.id}>
+                    {experience.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="primary-button"
+                onClick={() => {
+                  const target = experiences.find(
+                    (e) => e.id === selectedExperienceId,
+                  );
+                  if (target) {
+                    router.push(target.route);
                   }
-                  value={selectedAccessibleExperienceId}
-                >
-                  {accessibleExperiences.map((experience) => (
-                    <option key={experience.id} value={experience.id}>
-                      {experience.label}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  className="primary-button"
-                  onClick={() => {
-                    const target = accessibleExperiences.find(
-                      (experience) =>
-                        experience.id === selectedAccessibleExperienceId,
-                    );
-                    if (target) {
-                      router.push(target.route);
-                    }
-                  }}
-                  type="button"
-                >
-                  Go
-                </button>
-              </div>
-            </article>
-          ) : null}
-
-          {lockedExperiences.length > 0 ? (
-            <article className="section-card experience-action-card">
-              <div>
-                <p className="card-kicker">Request access</p>
-                <h3>Ask for an invite</h3>
-                <p className="section-detail">
-                  Pick one experience this browser does not have access to yet.
-                </p>
-              </div>
-              <div className="experience-control-row">
-                <label className="field-label" htmlFor="locked-experience">
-                  Experience
-                </label>
-                <select
-                  className="select-input"
-                  id="locked-experience"
-                  onChange={(event) =>
-                    setSelectedLockedExperienceId(
-                      event.target.value as ExperienceId,
-                    )
-                  }
-                  value={selectedLockedExperienceId}
-                >
-                  {lockedExperiences.map((experience) => (
-                    <option key={experience.id} value={experience.id}>
-                      {experience.label}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  className="secondary-button"
-                  onClick={() => setRequestFormOpen(true)}
-                  type="button"
-                >
-                  Request invite
-                </button>
-              </div>
-              {inviteRequestNotice ? (
-                <p className="success-text">{inviteRequestNotice}</p>
-              ) : null}
-            </article>
-          ) : null}
+                }}
+                type="button"
+              >
+                Go
+              </button>
+            </div>
+          </article>
         </div>
       </section>
 
@@ -510,100 +332,6 @@ export function DemoExperience() {
           </article>
         </div>
       </section>
-
-      {requestFormOpen && selectedLockedExperience ? (
-        <div
-          aria-labelledby="invite-request-title"
-          aria-modal="true"
-          className="invite-request-modal-overlay"
-          role="dialog"
-        >
-          <div className="invite-request-modal">
-            <div className="modal-heading-row">
-              <div>
-                <p className="card-kicker">Invite request</p>
-                <h3 id="invite-request-title">
-                  Request {selectedLockedExperience.label}
-                </h3>
-              </div>
-              <button
-                className="secondary-button"
-                onClick={() => setRequestFormOpen(false)}
-                type="button"
-              >
-                Close
-              </button>
-            </div>
-            <p className="section-detail">
-              The request is saved with the selected experience, then the invite
-              email is prepared in the background.
-            </p>
-            <form
-              className="invite-form invite-request-modal-form"
-              onSubmit={handleInviteRequestSubmit}
-            >
-              <label className="field-label" htmlFor="invite-request-name">
-                Name
-              </label>
-              <input
-                id="invite-request-name"
-                autoComplete="name"
-                className="text-input"
-                onChange={(event) =>
-                  handleInviteRequestChange('name', event.target.value)
-                }
-                required
-                value={inviteRequest.name}
-              />
-              <label className="field-label" htmlFor="invite-request-email">
-                Email
-              </label>
-              <input
-                id="invite-request-email"
-                autoComplete="email"
-                className="text-input"
-                onChange={(event) =>
-                  handleInviteRequestChange('email', event.target.value)
-                }
-                required
-                type="email"
-                value={inviteRequest.email}
-              />
-              <label className="field-label" htmlFor="invite-request-reason">
-                Short reason
-              </label>
-              <textarea
-                id="invite-request-reason"
-                className="text-area text-area--request"
-                onChange={(event) =>
-                  handleInviteRequestChange('reason', event.target.value)
-                }
-                placeholder="A sentence or two is enough."
-                required
-                rows={4}
-                value={inviteRequest.reason}
-              />
-              {inviteRequestError ? (
-                <p className="error-text">{inviteRequestError}</p>
-              ) : null}
-              <button
-                className="primary-button"
-                disabled={
-                  inviteRequestSubmitting ||
-                  !inviteRequest.name.trim() ||
-                  !inviteRequest.email.trim() ||
-                  !inviteRequest.reason.trim()
-                }
-                type="submit"
-              >
-                {inviteRequestSubmitting
-                  ? 'Sending request...'
-                  : 'Send request'}
-              </button>
-            </form>
-          </div>
-        </div>
-      ) : null}
     </ShellFrame>
   );
 }
