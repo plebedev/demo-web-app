@@ -1167,9 +1167,18 @@ export function RagWorkspace() {
                   fontWeight="600"
                   textAnchor="middle"
                   x="109"
-                  y="35"
+                  y="30"
                 >
                   Chunk
+                </text>
+                <text
+                  fill="#64748b"
+                  fontSize="6"
+                  textAnchor="middle"
+                  x="109"
+                  y="39"
+                >
+                  via Rust
                 </text>
                 <line
                   markerEnd="url(#rag-arr)"
@@ -1381,8 +1390,8 @@ export function RagWorkspace() {
                   specific documents.
                 </li>
                 <li>
-                  Documents are chunked and embedded on ingest; retrieval is
-                  scoped to the active persona.
+                  Documents are chunked by a dedicated Rust service and embedded
+                  on ingest; retrieval is scoped to the active persona.
                 </li>
                 <li>
                   Answers cite the retrieved chunks with source, title, and
@@ -1409,6 +1418,25 @@ export function RagWorkspace() {
                 <li>
                   Conversations with exhausted turns show a status indicator and
                   cannot receive new messages.
+                </li>
+              </ul>
+            </article>
+
+            <article className="section-card">
+              <p className="card-kicker">Text processing</p>
+              <ul className="section-list">
+                <li>
+                  Chunking and normalization are handled by a small internal
+                  Rust service (axum), not the Python backend.
+                </li>
+                <li>
+                  The Rust service exists for hands-on practice — reading about
+                  ownership and the borrow checker is different from writing a
+                  real service and fixing the compiler errors.
+                </li>
+                <li>
+                  It is fully deterministic: no AI, no randomness. The same text
+                  always produces the same chunks.
                 </li>
               </ul>
             </article>

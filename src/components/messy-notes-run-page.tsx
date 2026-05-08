@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { ProtectedDemoShell } from '@/components/protected-demo-shell';
 import { StickyNotesBoard } from '@/components/sticky-notes-board';
@@ -42,6 +42,7 @@ export function MessyNotesRunPage({
   const [title, setTitle] = useState('');
   const [inputText, setInputText] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [wantsSms, setWantsSms] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [smsNotificationAvailable, setSmsNotificationAvailable] =
@@ -282,6 +283,9 @@ export function MessyNotesRunPage({
     setTitle(nextRun.title || '');
     setInputText(nextRun.input_text || '');
     setSelectedFiles([]);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
     setError(null);
     return nextRun;
   }
@@ -387,6 +391,9 @@ export function MessyNotesRunPage({
       setTitle(nextRun.title || '');
       setInputText(nextRun.input_text || '');
       setSelectedFiles([]);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       setNotice(
         'Sample chaos loaded. It is curated, not freshly hallucinated.',
       );
@@ -726,6 +733,7 @@ export function MessyNotesRunPage({
                   onChange={(event) =>
                     setSelectedFiles(Array.from(event.target.files || []))
                   }
+                  ref={fileInputRef}
                   type="file"
                 />
                 <p className="section-detail section-detail--compact">

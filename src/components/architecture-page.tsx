@@ -40,11 +40,12 @@ export function ArchitecturePage() {
             {/*
               Rows:
                 1 (y=8):  Internet → Traefik → Next.js BFF  (public / blue)
-                2 (y=56): Oracle DB  ←  FastAPI backend      (internal / purple + amber)
+                2 (y=56): Oracle DB  ←  FastAPI backend  →  text-tools (Rust sidecar)
                 3 (y=108):LLM APIs   Voice APIs   Twilio     (external services)
               LLM APIs = Claude + OpenAI (model-agnostic, swappable via config).
               Twilio: solid arrow = inbound call (Twilio→Backend),
               dashed arrow = Media Streams (bidirectional).
+              text-tools: x=270 w=64 cx=302 cy=73, slate color (internal).
             */}
             <svg
               aria-label="System topology diagram"
@@ -279,6 +280,47 @@ export function ArchitecturePage() {
                 production
               </text>
 
+              {/* Backend → text-tools (Rust sidecar) */}
+              <line
+                markerEnd="url(#a-slate)"
+                stroke="#64748b"
+                strokeWidth="1"
+                x1="262"
+                x2="270"
+                y1="73"
+                y2="73"
+              />
+              {/* text-tools: x=270 w=64 cx=302 cy=73 */}
+              <rect
+                fill="#f1f5f9"
+                height="28"
+                rx="4"
+                stroke="#475569"
+                strokeWidth="1.5"
+                width="64"
+                x="270"
+                y="59"
+              />
+              <text
+                fill="#1e293b"
+                fontSize="8"
+                fontWeight="600"
+                textAnchor="middle"
+                x="302"
+                y="72"
+              >
+                text-tools
+              </text>
+              <text
+                fill="#64748b"
+                fontSize="6.5"
+                textAnchor="middle"
+                x="302"
+                y="82"
+              >
+                Rust · internal
+              </text>
+
               {/* ── Row 3: external services ──────────────────────────── */}
               {/* Backend bottom → LLM APIs top-center */}
               <line
@@ -505,6 +547,12 @@ export function ArchitecturePage() {
                 AI: LLM APIs (Claude, OpenAI) for workflow and retrieval; xAI
                 and OpenAI realtime for voice. Workflows are model-agnostic —
                 providers are swappable via config.
+              </li>
+              <li>
+                Text processing: a small Rust service (axum) handles
+                deterministic chunking and normalization for RAG ingest. It runs
+                as an internal sidecar — it exists as hands-on Rust practice,
+                not because Python couldn&apos;t do it.
               </li>
             </ul>
           </article>
