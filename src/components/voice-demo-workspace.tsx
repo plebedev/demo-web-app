@@ -18,10 +18,17 @@ type VoicePersona = {
   is_active: boolean;
 };
 
+type VoiceProvider = {
+  provider_id: string;
+  provider_name: string;
+  voices: string[];
+};
+
 type VoiceConfig = {
   id: number;
   experience_id: string;
   voice_name: string;
+  voice_provider: string | null;
   synthesized_greeting: string | null;
   greeting_synced_at: string | null;
 };
@@ -64,6 +71,8 @@ export function VoiceDemoWorkspace() {
   const [config, setConfig] = useState<VoiceConfig | null>(null);
   const [personaForm, setPersonaForm] =
     useState<PersonaFormState>(emptyPersonaForm);
+  const [providers, setProviders] = useState<VoiceProvider[]>([]);
+  const [voiceProvider, setVoiceProvider] = useState('');
   const [voiceName, setVoiceName] = useState('');
 
   // Loading / saving state
@@ -166,13 +175,36 @@ export function VoiceDemoWorkspace() {
         }
         setConfig(payload);
         setVoiceName(payload.voice_name);
+        setVoiceProvider(payload.voice_provider ?? '');
       } catch {
         // Config not yet created — not an error
       }
     }
 
+    async function loadProviders() {
+      try {
+        const response = await fetch('/api/bff/voice/providers', {
+          cache: 'no-store',
+          headers: authHeaders(token),
+        });
+        if (!response.ok) {
+          return;
+        }
+        const payload = (await response.json()) as {
+          providers: VoiceProvider[];
+        };
+        if (!active) {
+          return;
+        }
+        setProviders(payload.providers);
+      } catch {
+        // Non-fatal — dropdowns will be empty
+      }
+    }
+
     void loadPersonas();
     void loadConfig();
+    void loadProviders();
 
     return () => {
       active = false;
@@ -224,7 +256,10 @@ export function VoiceDemoWorkspace() {
         const configResponse = await fetch('/api/bff/voice/config', {
           method: 'PUT',
           headers: authHeaders(accessToken),
-          body: JSON.stringify({ voice_name: voiceName.trim() }),
+          body: JSON.stringify({
+            voice_name: voiceName.trim(),
+            voice_provider: voiceProvider.trim() || null,
+          }),
         });
         if (!configResponse.ok) {
           throw new Error('Unable to save voice configuration.');
@@ -232,6 +267,7 @@ export function VoiceDemoWorkspace() {
         const configPayload = (await configResponse.json()) as VoiceConfig;
         setConfig(configPayload);
         setVoiceName(configPayload.voice_name);
+        setVoiceProvider(configPayload.voice_provider ?? '');
       }
 
       if (personaForm.instructions.trim()) {
@@ -664,9 +700,9 @@ export function VoiceDemoWorkspace() {
             <p className="eyebrow">Configuration</p>
             <h2>Configure the voice advisor.</h2>
             <p className="lede lede--compact">
-              Set the voice character name and create personas with instructions
-              and embedded guidance. The greeting is synthesized automatically
-              when personas change.
+              Select a voice provider and voice, then create personas with
+              instructions and embedded guidance. The greeting is synthesized
+              automatically when personas change.
             </p>
           </div>
 
@@ -727,15 +763,44 @@ export function VoiceDemoWorkspace() {
                 >
                   <p className="card-kicker">Voice experience</p>
                   <label className="field-label" htmlFor="voice-name">
-                    Character name
+                    Provider
                   </label>
-                  <input
+                  <select
                     id="voice-name"
                     className="text-input"
+                    onChange={(event) => {
+                      setVoiceProvider(event.target.value);
+                      setVoiceName('');
+                    }}
+                    value={voiceProvider}
+                  >
+                    <option value="">— select provider —</option>
+                    {providers.map((p) => (
+                      <option key={p.provider_id} value={p.provider_id}>
+                        {p.provider_name}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="field-label" htmlFor="voice-voice">
+                    Voice
+                  </label>
+                  <select
+                    id="voice-voice"
+                    className="text-input"
+                    disabled={!voiceProvider}
                     onChange={(event) => setVoiceName(event.target.value)}
-                    placeholder="e.g. Eve"
                     value={voiceName}
-                  />
+                  >
+                    <option value="">— select voice —</option>
+                    {(
+                      providers.find((p) => p.provider_id === voiceProvider)
+                        ?.voices ?? []
+                    ).map((v) => (
+                      <option key={v} value={v}>
+                        {v}
+                      </option>
+                    ))}
+                  </select>
                   {config?.synthesized_greeting ? (
                     <>
                       <label className="field-label">
@@ -838,7 +903,7 @@ export function VoiceDemoWorkspace() {
                       className="primary-button"
                       disabled={
                         isSaving ||
-                        (!voiceName.trim() && !personaForm.instructions.trim())
+                        (!voiceName && !personaForm.instructions.trim())
                       }
                       type="submit"
                     >

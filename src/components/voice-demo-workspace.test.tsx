@@ -34,6 +34,16 @@ Element.prototype.scrollIntoView = vi.fn();
 
 const emptyPersonasResponse = JSON.stringify({ personas: [] });
 const emptyConfigResponse = new Response(null, { status: 404 });
+const providersResponse = JSON.stringify({
+  providers: [
+    { provider_id: 'xai', provider_name: 'xAI', voices: ['eve', 'ara'] },
+    {
+      provider_id: 'openai',
+      provider_name: 'OpenAI',
+      voices: ['alloy', 'echo'],
+    },
+  ],
+});
 
 function makePersona(id: number, name: string) {
   return {
@@ -44,6 +54,45 @@ function makePersona(id: number, name: string) {
     tool_config: null,
     is_active: true,
   };
+}
+
+/** Build a fetch mock that handles the three standard read endpoints. */
+function makeBaseFetch(
+  extraHandler?: (
+    url: string,
+    init?: RequestInit,
+  ) => Response | Promise<Response> | null,
+) {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+
+    if (extraHandler) {
+      const result = extraHandler(url, init);
+      if (result !== null) {
+        return result instanceof Promise ? await result : result;
+      }
+    }
+
+    if (
+      url.endsWith('/api/bff/voice/personas') &&
+      (!init?.method || init.method === 'GET')
+    ) {
+      return new Response(emptyPersonasResponse, {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    if (url.endsWith('/api/bff/voice/config') && !init?.method) {
+      return emptyConfigResponse.clone();
+    }
+    if (url.endsWith('/api/bff/voice/providers')) {
+      return new Response(providersResponse, {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    throw new Error(`Unexpected fetch: ${url} ${init?.method}`);
+  });
 }
 
 describe('VoiceDemoWorkspace', () => {
@@ -57,22 +106,7 @@ describe('VoiceDemoWorkspace', () => {
   });
 
   it('renders Test and Configuration tabs', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = String(input);
-        if (url.endsWith('/api/bff/voice/personas')) {
-          return new Response(emptyPersonasResponse, {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
-        if (url.endsWith('/api/bff/voice/config')) {
-          return emptyConfigResponse.clone();
-        }
-        throw new Error(`Unexpected fetch: ${url}`);
-      }),
-    );
+    vi.stubGlobal('fetch', makeBaseFetch());
 
     render(<VoiceDemoWorkspace />);
 
@@ -81,22 +115,7 @@ describe('VoiceDemoWorkspace', () => {
   });
 
   it('Test tab shows start button and message when no persona configured', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = String(input);
-        if (url.endsWith('/api/bff/voice/personas')) {
-          return new Response(emptyPersonasResponse, {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
-        if (url.endsWith('/api/bff/voice/config')) {
-          return emptyConfigResponse.clone();
-        }
-        throw new Error(`Unexpected fetch: ${url}`);
-      }),
-    );
+    vi.stubGlobal('fetch', makeBaseFetch());
 
     render(<VoiceDemoWorkspace />);
 
@@ -114,18 +133,14 @@ describe('VoiceDemoWorkspace', () => {
 
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = String(input);
+      makeBaseFetch((url) => {
         if (url.endsWith('/api/bff/voice/personas')) {
           return new Response(JSON.stringify({ personas: [persona] }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
           });
         }
-        if (url.endsWith('/api/bff/voice/config')) {
-          return emptyConfigResponse.clone();
-        }
-        throw new Error(`Unexpected fetch: ${url}`);
+        return null;
       }),
     );
 
@@ -137,41 +152,29 @@ describe('VoiceDemoWorkspace', () => {
 
     expect(await screen.findByText('Employer Advisor')).toBeTruthy();
     expect(screen.getByText('Voice experience')).toBeTruthy();
-    expect(screen.getByLabelText('Character name')).toBeTruthy();
+    expect(screen.getByLabelText('Provider')).toBeTruthy();
+    expect(screen.getByLabelText('Voice')).toBeTruthy();
   });
 
-  it('saving voice name calls PUT /api/bff/voice/config', async () => {
+  it('saving voice config calls PUT /api/bff/voice/config with provider and voice', async () => {
     const configResponse = {
       id: 1,
       experience_id: 'voice-demo',
-      voice_name: 'Eve',
+      voice_name: 'eve',
+      voice_provider: 'xai',
       synthesized_greeting: null,
       greeting_synced_at: null,
     };
 
-    const fetchMock = vi.fn(
-      async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input);
-        if (url.endsWith('/api/bff/voice/personas')) {
-          return new Response(emptyPersonasResponse, {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
-        if (url.endsWith('/api/bff/voice/config')) {
-          if (!init?.method || init.method === 'GET') {
-            return emptyConfigResponse.clone();
-          }
-          if (init.method === 'PUT') {
-            return new Response(JSON.stringify(configResponse), {
-              status: 200,
-              headers: { 'Content-Type': 'application/json' },
-            });
-          }
-        }
-        throw new Error(`Unexpected fetch: ${url} ${init?.method}`);
-      },
-    );
+    const fetchMock = makeBaseFetch((url, init) => {
+      if (url.endsWith('/api/bff/voice/config') && init?.method === 'PUT') {
+        return new Response(JSON.stringify(configResponse), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return null;
+    });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<VoiceDemoWorkspace />);
@@ -180,8 +183,17 @@ describe('VoiceDemoWorkspace', () => {
       await screen.findByRole('button', { name: 'Configuration' }),
     );
 
-    const nameInput = await screen.findByLabelText('Character name');
-    fireEvent.change(nameInput, { target: { value: 'Eve' } });
+    // Wait for providers to load, then pick a provider and voice
+    const providerSelect = (await screen.findByLabelText(
+      'Provider',
+    )) as HTMLSelectElement;
+    fireEvent.change(providerSelect, { target: { value: 'xai' } });
+
+    const voiceSelect = (await screen.findByLabelText(
+      'Voice',
+    )) as HTMLSelectElement;
+    fireEvent.change(voiceSelect, { target: { value: 'eve' } });
+
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
@@ -195,33 +207,15 @@ describe('VoiceDemoWorkspace', () => {
   it('creating a persona calls POST /api/bff/voice/personas', async () => {
     const newPersona = makePersona(42, 'New Advisor');
 
-    const fetchMock = vi.fn(
-      async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input);
-        if (
-          url.endsWith('/api/bff/voice/personas') &&
-          (!init?.method || init.method === 'GET')
-        ) {
-          return new Response(emptyPersonasResponse, {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
-        if (
-          url.endsWith('/api/bff/voice/personas') &&
-          init?.method === 'POST'
-        ) {
-          return new Response(JSON.stringify(newPersona), {
-            status: 201,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
-        if (url.endsWith('/api/bff/voice/config')) {
-          return emptyConfigResponse.clone();
-        }
-        throw new Error(`Unexpected fetch: ${url} ${init?.method}`);
-      },
-    );
+    const fetchMock = makeBaseFetch((url, init) => {
+      if (url.endsWith('/api/bff/voice/personas') && init?.method === 'POST') {
+        return new Response(JSON.stringify(newPersona), {
+          status: 201,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return null;
+    });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<VoiceDemoWorkspace />);
@@ -252,18 +246,14 @@ describe('VoiceDemoWorkspace', () => {
 
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = String(input);
+      makeBaseFetch((url) => {
         if (url.endsWith('/api/bff/voice/personas')) {
           return new Response(JSON.stringify({ personas: [persona] }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
           });
         }
-        if (url.endsWith('/api/bff/voice/config')) {
-          return emptyConfigResponse.clone();
-        }
-        throw new Error(`Unexpected fetch: ${url}`);
+        return null;
       }),
     );
 
@@ -285,27 +275,21 @@ describe('VoiceDemoWorkspace', () => {
   it('deactivating a persona calls POST .../deactivate and removes it from the list', async () => {
     const persona = makePersona(7, 'Removable Advisor');
 
-    const fetchMock = vi.fn(
-      async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input);
-        if (url.endsWith('/api/bff/voice/personas')) {
-          return new Response(JSON.stringify({ personas: [persona] }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
-        if (url.includes('/api/bff/voice/personas/7/deactivate')) {
-          return new Response(
-            JSON.stringify({ ...persona, is_active: false }),
-            { status: 200, headers: { 'Content-Type': 'application/json' } },
-          );
-        }
-        if (url.endsWith('/api/bff/voice/config')) {
-          return emptyConfigResponse.clone();
-        }
-        throw new Error(`Unexpected fetch: ${url} ${init?.method}`);
-      },
-    );
+    const fetchMock = makeBaseFetch((url) => {
+      if (url.endsWith('/api/bff/voice/personas')) {
+        return new Response(JSON.stringify({ personas: [persona] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url.includes('/api/bff/voice/personas/7/deactivate')) {
+        return new Response(JSON.stringify({ ...persona, is_active: false }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return null;
+    });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<VoiceDemoWorkspace />);
@@ -340,6 +324,12 @@ describe('VoiceDemoWorkspace', () => {
         }
         if (url.endsWith('/api/bff/voice/config')) {
           return emptyConfigResponse.clone();
+        }
+        if (url.endsWith('/api/bff/voice/providers')) {
+          return new Response(providersResponse, {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
         }
         throw new Error(`Unexpected fetch: ${url}`);
       }),
