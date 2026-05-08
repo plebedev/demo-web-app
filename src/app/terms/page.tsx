@@ -17,8 +17,8 @@ export default function TermsPage() {
         </Link>
 
         <nav className="topnav" aria-label="Terms navigation">
-          <Link href="/">Invite shell</Link>
-          <Link href="/messy-notes">Workspace</Link>
+          <Link href="/">Access hub</Link>
+          <Link href="/architecture">Architecture</Link>
           <Link href="/privacy">Privacy</Link>
         </nav>
 

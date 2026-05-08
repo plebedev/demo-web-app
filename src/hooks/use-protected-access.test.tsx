@@ -96,4 +96,17 @@ describe('useProtectedAccess', () => {
     });
     expect(replaceMock).toHaveBeenCalledWith('/');
   });
+
+  it('does not redirect when redirect:false and no stored token', async () => {
+    render(<ProtectedAccessNoRedirectProbe />);
+    expect(await screen.findByText('no token')).toBeInTheDocument();
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
 });
+
+function ProtectedAccessNoRedirectProbe() {
+  const { accessToken, isChecking } = useProtectedAccess('rag-demo', {
+    redirect: false,
+  });
+  return <p>{isChecking ? 'checking' : accessToken || 'no token'}</p>;
+}

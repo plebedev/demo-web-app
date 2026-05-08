@@ -16,7 +16,11 @@ type VerificationPayload = {
   expires_at: string;
 };
 
-export function useProtectedAccess(experienceId: ExperienceId) {
+export function useProtectedAccess(
+  experienceId: ExperienceId,
+  options?: { redirect?: boolean },
+) {
+  const shouldRedirect = options?.redirect !== false;
   const router = useRouter();
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isChecking, setIsChecking] = useState(true);
@@ -24,7 +28,9 @@ export function useProtectedAccess(experienceId: ExperienceId) {
   useEffect(() => {
     const storedToken = readStoredAccessToken(experienceId);
     if (!storedToken) {
-      router.replace('/');
+      if (shouldRedirect) {
+        router.replace('/');
+      }
       setIsChecking(false);
       return;
     }
@@ -47,7 +53,9 @@ export function useProtectedAccess(experienceId: ExperienceId) {
       clearStoredAccessToken(experienceId);
       setAccessToken(null);
       setIsChecking(false);
-      router.replace('/');
+      if (shouldRedirect) {
+        router.replace('/');
+      }
     }
 
     async function verifyToken() {
@@ -94,7 +102,7 @@ export function useProtectedAccess(experienceId: ExperienceId) {
     return () => {
       active = false;
     };
-  }, [experienceId, router]);
+  }, [experienceId, router, shouldRedirect]);
 
   return {
     accessToken,

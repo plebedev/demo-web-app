@@ -5,9 +5,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import { clearStoredAccessToken } from '@/lib/access-token';
+import { InlineAccessPanel } from '@/components/inline-access-panel';
 import { useProtectedAccess } from '@/hooks/use-protected-access';
 
-type VoiceTab = 'test' | 'configuration' | 'history';
+type VoiceTab = 'test' | 'configuration' | 'history' | 'about';
 
 type VoicePersona = {
   id: number;
@@ -89,7 +90,12 @@ function authHeaders(token: string): HeadersInit {
 
 export function VoiceDemoWorkspace() {
   const router = useRouter();
-  const { accessToken, isChecking } = useProtectedAccess('voice-demo');
+  const { accessToken: verifiedToken, isChecking } = useProtectedAccess(
+    'voice-demo',
+    { redirect: false },
+  );
+  const [tokenOverride, setTokenOverride] = useState<string | null>(null);
+  const accessToken = tokenOverride ?? verifiedToken;
   const [activeTab, setActiveTab] = useState<VoiceTab>('test');
 
   // Configuration state
@@ -729,7 +735,15 @@ export function VoiceDemoWorkspace() {
           >
             History
           </button>
+          <button
+            className={activeTab === 'about' ? 'topnav-link-active' : ''}
+            onClick={() => setActiveTab('about')}
+            type="button"
+          >
+            About
+          </button>
           <Link href="/">Access hub</Link>
+          <Link href="/architecture">Architecture</Link>
           <Link href="/privacy">Privacy</Link>
           <Link href="/terms">Terms</Link>
         </nav>
@@ -750,7 +764,7 @@ export function VoiceDemoWorkspace() {
             <h1>Checking your saved voice access.</h1>
           </div>
         </section>
-      ) : activeTab === 'test' ? (
+      ) : activeTab === 'test' && accessToken !== null ? (
         <section className="section-grid">
           <div className="section-heading">
             <p className="eyebrow">Test</p>
@@ -852,7 +866,12 @@ export function VoiceDemoWorkspace() {
             </section>
           </div>
         </section>
-      ) : activeTab === 'configuration' ? (
+      ) : activeTab === 'test' ? (
+        <InlineAccessPanel
+          experienceId="voice-demo"
+          onAccessGranted={setTokenOverride}
+        />
+      ) : activeTab === 'configuration' && accessToken !== null ? (
         <section className="section-grid">
           <div className="section-heading">
             <p className="eyebrow">Configuration</p>
@@ -1083,7 +1102,384 @@ export function VoiceDemoWorkspace() {
             </div>
           </div>
         </section>
-      ) : (
+      ) : activeTab === 'configuration' ? (
+        <InlineAccessPanel
+          experienceId="voice-demo"
+          onAccessGranted={setTokenOverride}
+        />
+      ) : activeTab === 'about' ? (
+        <section className="section-grid">
+          <div className="section-heading">
+            <p className="eyebrow">Voice Demo — about</p>
+            <h2>
+              Browser and phone access to a persona-configured voice advisor.
+            </h2>
+            <p className="lede lede--compact">
+              Both paths share the same persona config, transcript storage, and
+              session handling. The active persona can be reached from a browser
+              or via Twilio inbound call.
+            </p>
+          </div>
+
+          <div className="architecture-grid">
+            <article className="section-card section-card--tall">
+              <p className="card-kicker">How it works</p>
+              {/*
+                Two entry paths converge on the backend bridge, which connects
+                to the voice provider. DB stores transcript + metadata.
+                Browser: microphone → WebSocket → bridge
+                Phone:   Twilio call → bridge (Media Streams, bidirectional)
+              */}
+              <svg
+                aria-label="Voice demo architecture diagram"
+                viewBox="0 0 340 155"
+                width="100%"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <defs>
+                  <marker
+                    id="v-arr"
+                    markerHeight="5"
+                    markerWidth="5"
+                    orient="auto"
+                    refX="5"
+                    refY="2.5"
+                    viewBox="0 0 5 5"
+                  >
+                    <path d="M0,0 L5,2.5 L0,5 Z" fill="#64748b" />
+                  </marker>
+                  <marker
+                    id="v-arr-rev"
+                    markerHeight="5"
+                    markerWidth="5"
+                    orient="auto-start-reverse"
+                    refX="5"
+                    refY="2.5"
+                    viewBox="0 0 5 5"
+                  >
+                    <path d="M0,0 L5,2.5 L0,5 Z" fill="#64748b" />
+                  </marker>
+                  <marker
+                    id="v-arr-pink"
+                    markerHeight="5"
+                    markerWidth="5"
+                    orient="auto"
+                    refX="5"
+                    refY="2.5"
+                    viewBox="0 0 5 5"
+                  >
+                    <path d="M0,0 L5,2.5 L0,5 Z" fill="#be185d" />
+                  </marker>
+                </defs>
+                <rect
+                  fill="#f8f9ff"
+                  height="155"
+                  rx="6"
+                  width="340"
+                  x="0"
+                  y="0"
+                />
+
+                {/* ── Browser path (top) ───────────────────────────── */}
+                <text fill="#3b82f6" fontSize="7" fontWeight="600" x="8" y="13">
+                  BROWSER
+                </text>
+                <rect
+                  fill="#eff6ff"
+                  height="26"
+                  rx="4"
+                  stroke="#3b82f6"
+                  strokeWidth="1.5"
+                  width="62"
+                  x="8"
+                  y="18"
+                />
+                <text
+                  fill="#1e293b"
+                  fontSize="8"
+                  fontWeight="600"
+                  textAnchor="middle"
+                  x="39"
+                  y="35"
+                >
+                  Microphone
+                </text>
+
+                {/* Microphone → bridge (diagonal down-right) */}
+                <line
+                  markerEnd="url(#v-arr)"
+                  stroke="#64748b"
+                  strokeWidth="1"
+                  x1="70"
+                  x2="94"
+                  y1="34"
+                  y2="52"
+                />
+
+                {/* ── Phone path (middle) ──────────────────────────── */}
+                <text fill="#be185d" fontSize="7" fontWeight="600" x="8" y="63">
+                  PHONE
+                </text>
+                <rect
+                  fill="#fdf2f8"
+                  height="26"
+                  rx="4"
+                  stroke="#be185d"
+                  strokeWidth="1.5"
+                  width="62"
+                  x="8"
+                  y="68"
+                />
+                <text
+                  fill="#1e293b"
+                  fontSize="8"
+                  fontWeight="600"
+                  textAnchor="middle"
+                  x="39"
+                  y="85"
+                >
+                  Twilio call
+                </text>
+
+                {/* Phone → bridge (diagonal up-right, bidirectional for streams) */}
+                <line
+                  markerEnd="url(#v-arr)"
+                  stroke="#be185d"
+                  strokeWidth="1.2"
+                  x1="70"
+                  x2="94"
+                  y1="77"
+                  y2="62"
+                />
+                <line
+                  markerEnd="url(#v-arr-pink)"
+                  stroke="#be185d"
+                  strokeDasharray="3,2"
+                  strokeWidth="1.2"
+                  x1="94"
+                  x2="70"
+                  y1="67"
+                  y2="82"
+                />
+
+                {/* ── FastAPI bridge (center) ──────────────────────── */}
+                <rect
+                  fill="#f5f3ff"
+                  height="44"
+                  rx="4"
+                  stroke="#7c3aed"
+                  strokeWidth="1.5"
+                  width="82"
+                  x="98"
+                  y="40"
+                />
+                <text
+                  fill="#1e293b"
+                  fontSize="9"
+                  fontWeight="600"
+                  textAnchor="middle"
+                  x="139"
+                  y="56"
+                >
+                  FastAPI bridge
+                </text>
+                <text
+                  fill="#64748b"
+                  fontSize="7"
+                  textAnchor="middle"
+                  x="139"
+                  y="67"
+                >
+                  WebSocket
+                </text>
+                <text
+                  fill="#64748b"
+                  fontSize="7"
+                  textAnchor="middle"
+                  x="139"
+                  y="77"
+                >
+                  Media Streams
+                </text>
+
+                {/* Bridge ↔ Voice provider (bidirectional) */}
+                <line
+                  markerEnd="url(#v-arr)"
+                  stroke="#64748b"
+                  strokeWidth="1"
+                  x1="180"
+                  x2="200"
+                  y1="59"
+                  y2="59"
+                />
+                <line
+                  markerEnd="url(#v-arr-rev)"
+                  stroke="#64748b"
+                  strokeWidth="1"
+                  x1="200"
+                  x2="180"
+                  y1="65"
+                  y2="65"
+                />
+
+                {/* ── Voice provider ───────────────────────────────── */}
+                <rect
+                  fill="#fff7ed"
+                  height="44"
+                  rx="4"
+                  stroke="#ea580c"
+                  strokeWidth="1.5"
+                  width="80"
+                  x="204"
+                  y="40"
+                />
+                <text
+                  fill="#1e293b"
+                  fontSize="9"
+                  fontWeight="600"
+                  textAnchor="middle"
+                  x="244"
+                  y="56"
+                >
+                  Voice provider
+                </text>
+                <text
+                  fill="#64748b"
+                  fontSize="7"
+                  textAnchor="middle"
+                  x="244"
+                  y="67"
+                >
+                  xAI realtime
+                </text>
+                <text
+                  fill="#64748b"
+                  fontSize="7"
+                  textAnchor="middle"
+                  x="244"
+                  y="77"
+                >
+                  OpenAI realtime
+                </text>
+
+                {/* Bridge → DB */}
+                <line
+                  markerEnd="url(#v-arr)"
+                  stroke="#64748b"
+                  strokeWidth="1"
+                  x1="139"
+                  x2="139"
+                  y1="84"
+                  y2="100"
+                />
+
+                {/* ── Oracle DB (below bridge) ─────────────────────── */}
+                <rect
+                  fill="#fefce8"
+                  height="28"
+                  rx="4"
+                  stroke="#d97706"
+                  strokeWidth="1.5"
+                  width="82"
+                  x="98"
+                  y="102"
+                />
+                <text
+                  fill="#1e293b"
+                  fontSize="8"
+                  fontWeight="600"
+                  textAnchor="middle"
+                  x="139"
+                  y="116"
+                >
+                  Oracle DB
+                </text>
+                <text
+                  fill="#64748b"
+                  fontSize="6.5"
+                  textAnchor="middle"
+                  x="139"
+                  y="126"
+                >
+                  transcript · metadata
+                </text>
+
+                {/* footnotes */}
+                <text
+                  fill="#64748b"
+                  fontSize="6.5"
+                  textAnchor="middle"
+                  x="170"
+                  y="143"
+                >
+                  Both paths share persona config and session handling
+                </text>
+                <text fill="#be185d" fontSize="6.5" x="8" y="152">
+                  ── call in · - - - Media Streams (bidirectional)
+                </text>
+              </svg>
+            </article>
+
+            <article className="section-card section-card--tall">
+              <p className="card-kicker">What it is</p>
+              <ul className="section-list">
+                <li>
+                  Browser-based voice session using the microphone and WebSocket
+                  connection to the backend.
+                </li>
+                <li>
+                  Phone access via Twilio inbound call — the active persona
+                  answers directly.
+                </li>
+                <li>
+                  Persona instructions configure the advisor&#39;s behavior,
+                  greeting, and tool access.
+                </li>
+                <li>
+                  Real-time transcript with tool calls visible during and after
+                  the session.
+                </li>
+              </ul>
+            </article>
+
+            <article className="section-card">
+              <p className="card-kicker">Transcript and storage</p>
+              <ul className="section-list">
+                <li>
+                  Text transcript and tool calls are persisted per session.
+                </li>
+                <li>Audio is not stored — only the text.</li>
+                <li>
+                  Session metadata includes provider, voice, duration, and
+                  estimated cost.
+                </li>
+              </ul>
+            </article>
+
+            <article className="section-card">
+              <p className="card-kicker">Cost tracking</p>
+              <ul className="section-list">
+                <li>Estimated cost is shown per session in the History tab.</li>
+                <li>xAI: approximately $3/hr based on audio duration.</li>
+                <li>
+                  OpenAI: approximately $0.10–$0.35/min based on audio duration.
+                </li>
+              </ul>
+            </article>
+
+            <article className="section-card">
+              <p className="card-kicker">Not yet implemented</p>
+              <ul className="section-list">
+                <li>
+                  OpenAI token-based cost tracking — currently estimated from
+                  duration, not usage tokens.
+                </li>
+                <li>Audio playback of past sessions is not supported.</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+      ) : accessToken !== null ? (
         <section className="section-grid">
           <div className="section-heading">
             <p className="eyebrow">History</p>
@@ -1184,6 +1580,11 @@ export function VoiceDemoWorkspace() {
             )}
           </div>
         </section>
+      ) : (
+        <InlineAccessPanel
+          experienceId="voice-demo"
+          onAccessGranted={setTokenOverride}
+        />
       )}
     </main>
   );

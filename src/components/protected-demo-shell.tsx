@@ -11,10 +11,12 @@ export function ProtectedDemoShell({
   activePath,
   children,
   experienceId = 'messy-notes',
+  hasAccess = true,
 }: Readonly<{
   activePath: 'workspace' | 'about';
   children: ReactNode;
   experienceId?: ExperienceId;
+  hasAccess?: boolean;
 }>) {
   const router = useRouter();
 
@@ -47,18 +49,21 @@ export function ProtectedDemoShell({
           >
             About
           </Link>
-          <Link href="/">Invite shell</Link>
+          <Link href="/">Access hub</Link>
+          <Link href="/architecture">Architecture</Link>
           <Link href="/privacy">Privacy</Link>
           <Link href="/terms">Terms</Link>
         </nav>
 
-        <button
-          className="secondary-button"
-          onClick={handleSignOut}
-          type="button"
-        >
-          Leave demo
-        </button>
+        {hasAccess && (
+          <button
+            className="secondary-button"
+            onClick={handleSignOut}
+            type="button"
+          >
+            Leave demo
+          </button>
+        )}
       </header>
 
       {children}

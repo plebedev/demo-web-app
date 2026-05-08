@@ -397,4 +397,16 @@ describe('VoiceDemoWorkspace', () => {
     expect(screen.getByText('1m 30s')).toBeTruthy();
     expect(screen.getByText('~$0.0125')).toBeTruthy();
   });
+
+  it('renders about tab content when About is clicked', async () => {
+    vi.stubGlobal('fetch', vi.fn(makeBaseFetch(() => null)));
+    render(<VoiceDemoWorkspace />);
+    fireEvent.click(await screen.findByRole('button', { name: 'About' }));
+    expect(await screen.findByText('Voice Demo — about')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Browser and phone access to a persona-configured voice advisor.',
+      ),
+    ).toBeInTheDocument();
+  });
 });
