@@ -354,6 +354,27 @@ export function VoiceDemoWorkspace() {
           playAudio(msg.data);
         } else if (msg.type === 'transcript' && msg.text) {
           appendTranscript('advisor', msg.text);
+        } else if (msg.type === 'user_transcript' && msg.text) {
+          appendTranscript('user', msg.text);
+        } else if (msg.type === 'end') {
+          // Close WS and stop mic capture immediately, but let queued
+          // audio finish before tearing down the AudioContext.
+          wsRef.current?.close();
+          wsRef.current = null;
+          processorRef.current?.disconnect();
+          processorRef.current = null;
+          streamRef.current?.getTracks().forEach((t) => t.stop());
+          streamRef.current = null;
+          const ctx = audioCtxRef.current;
+          const remainingMs = ctx
+            ? Math.max(0, nextPlayTimeRef.current - ctx.currentTime) * 1000
+            : 0;
+          setTimeout(() => {
+            void audioCtxRef.current?.close();
+            audioCtxRef.current = null;
+            nextPlayTimeRef.current = 0;
+            setConnectionState('idle');
+          }, remainingMs + 150);
         } else if (msg.type === 'error') {
           setError(msg.message ?? 'Unknown error from voice service.');
           setConnectionState('error');
