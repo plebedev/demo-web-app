@@ -865,6 +865,75 @@ a {
   line-height: 1.4;
 }
 
+/* ------------------------------------------------------------------ */
+/* Voice workspace — mirrors rag layout classes                        */
+/* ------------------------------------------------------------------ */
+
+.voice-config-grid {
+  display: grid;
+  grid-template-columns: minmax(16rem, 0.72fr) minmax(0, 1.28fr);
+  gap: 1rem;
+  margin-top: 1.2rem;
+}
+
+.voice-config-sidebar,
+.voice-config-panel {
+  align-content: start;
+}
+
+.voice-chat-grid {
+  display: grid;
+  grid-template-columns: minmax(17rem, 0.42fr) minmax(0, 1fr);
+  gap: 1rem;
+  margin-top: 1.2rem;
+}
+
+.voice-chat-sidebar,
+.voice-chat-panel {
+  align-content: start;
+  display: grid;
+  gap: 1rem;
+}
+
+.voice-message-list {
+  display: grid;
+  gap: 0.85rem;
+  max-height: 34rem;
+  overflow: auto;
+  padding-right: 0.25rem;
+}
+
+.voice-message {
+  display: grid;
+  gap: 0.45rem;
+  max-width: 86%;
+  padding: 0.85rem;
+  border: 1px solid rgba(29, 79, 128, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.voice-message--user {
+  justify-self: end;
+  background: rgba(29, 79, 128, 0.08);
+}
+
+.voice-message--advisor {
+  justify-self: start;
+}
+
+.voice-message > p {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.voice-persona-list-items {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
 .markdown-preview {
   display: grid;
   gap: 0.45rem;
@@ -1395,6 +1464,8 @@ a {
   .overview-strip,
   .rag-chat-grid,
   .rag-config-grid,
+  .voice-chat-grid,
+  .voice-config-grid,
   .run-grid,
   .editor-grid,
   .editor-panels,
