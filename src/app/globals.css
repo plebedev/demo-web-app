@@ -922,10 +922,37 @@ a {
   justify-self: start;
 }
 
+.voice-message--tool-call {
+  justify-self: center;
+  max-width: 100%;
+  background: transparent;
+  border: 1px dashed rgba(102, 95, 88, 0.3);
+  padding: 0.45rem 0.75rem;
+}
+
 .voice-message > p {
   margin: 0;
   color: var(--text);
   line-height: 1.5;
+}
+
+.voice-tool-call-name {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+.voice-tool-call-arg {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.voice-tool-call-arg-key {
+  font-weight: 500;
 }
 
 .voice-persona-list-items {

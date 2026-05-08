@@ -35,7 +35,14 @@ type VoiceConfig = {
 
 type ConnectionState = 'idle' | 'connecting' | 'connected' | 'error';
 
-type TranscriptEntry = { id: number; role: 'advisor' | 'user'; text: string };
+type TranscriptEntry =
+  | { id: number; role: 'advisor' | 'user'; text: string }
+  | {
+      id: number;
+      role: 'tool_call';
+      tool_name: string;
+      args: Record<string, unknown>;
+    };
 
 type PersonaFormState = {
   name: string;
@@ -394,6 +401,8 @@ export function VoiceDemoWorkspace() {
           media?: { payload: string };
           text?: string;
           message?: string;
+          tool_name?: string;
+          args?: Record<string, unknown>;
         };
         if (msg.event === 'media' && msg.media?.payload) {
           playAudio(msg.media.payload);
@@ -401,6 +410,8 @@ export function VoiceDemoWorkspace() {
           appendTranscript('advisor', msg.text);
         } else if (msg.event === 'user_transcript' && msg.text) {
           appendTranscript('user', msg.text);
+        } else if (msg.event === 'tool_call' && msg.tool_name) {
+          appendToolCall(msg.tool_name, msg.args ?? {});
         } else if (msg.event === 'clear') {
           activeSourcesRef.current.forEach((s) => {
             try {
@@ -412,22 +423,15 @@ export function VoiceDemoWorkspace() {
           activeSourcesRef.current = [];
           nextPlayTimeRef.current = audioCtxRef.current?.currentTime ?? 0;
         } else if (msg.event === 'end') {
-          wsRef.current?.close();
-          wsRef.current = null;
+          // Stop the mic immediately so we stop sending audio.
+          // Do NOT close the WebSocket here — the server will close it after
+          // sending this event, and the browser guarantees all buffered messages
+          // are delivered via onmessage before onclose fires.  Closing the WS
+          // early would drop any audio chunks still in transit.
           processorRef.current?.disconnect();
           processorRef.current = null;
           streamRef.current?.getTracks().forEach((t) => t.stop());
           streamRef.current = null;
-          const ctx = audioCtxRef.current;
-          const remainingMs = ctx
-            ? Math.max(0, nextPlayTimeRef.current - ctx.currentTime) * 1000
-            : 0;
-          setTimeout(() => {
-            void audioCtxRef.current?.close();
-            audioCtxRef.current = null;
-            nextPlayTimeRef.current = 0;
-            setConnectionState('idle');
-          }, remainingMs + 150);
         } else if (msg.event === 'error') {
           setError(msg.message ?? 'Unknown error from voice service.');
           setConnectionState('error');
@@ -445,8 +449,23 @@ export function VoiceDemoWorkspace() {
     };
 
     ws.onclose = () => {
-      setConnectionState((current) => (current === 'error' ? 'error' : 'idle'));
-      stopMic();
+      // By the time onclose fires, all buffered WS messages have been delivered,
+      // so nextPlayTimeRef reflects the full audio queue.  Wait for it to drain
+      // before closing the AudioContext.
+      wsRef.current = null;
+      stopMicTracks();
+      const ctx = audioCtxRef.current;
+      const remainingMs = ctx
+        ? Math.max(0, nextPlayTimeRef.current - ctx.currentTime) * 1000
+        : 0;
+      setTimeout(() => {
+        void audioCtxRef.current?.close();
+        audioCtxRef.current = null;
+        nextPlayTimeRef.current = 0;
+        setConnectionState((current) =>
+          current === 'error' ? 'error' : 'idle',
+        );
+      }, remainingMs + 400);
     };
 
     await startMic(ws);
@@ -512,13 +531,17 @@ export function VoiceDemoWorkspace() {
     }
   }
 
-  function stopMic() {
+  function stopMicTracks() {
     processorRef.current?.disconnect();
     processorRef.current = null;
-    void audioCtxRef.current?.close();
-    audioCtxRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+  }
+
+  function stopMic() {
+    stopMicTracks();
+    void audioCtxRef.current?.close();
+    audioCtxRef.current = null;
   }
 
   function playAudio(b64: string) {
@@ -548,10 +571,25 @@ export function VoiceDemoWorkspace() {
     setTranscript((prev) => {
       const last = prev[prev.length - 1];
       if (last && last.role === role) {
-        return [...prev.slice(0, -1), { ...last, text: last.text + text }];
+        return [
+          ...prev.slice(0, -1),
+          { id: last.id, role: last.role, text: last.text + text },
+        ];
       }
       return [...prev, { id: ++entryIdRef.current, role, text }];
     });
+  }
+
+  function appendToolCall(toolName: string, args: Record<string, unknown>) {
+    setTranscript((prev) => [
+      ...prev,
+      {
+        id: ++entryIdRef.current,
+        role: 'tool_call' as const,
+        tool_name: toolName,
+        args,
+      },
+    ]);
   }
 
   const isCallActive =
@@ -677,17 +715,36 @@ export function VoiceDemoWorkspace() {
                     Start a conversation to see the transcript here.
                   </p>
                 ) : (
-                  transcript.map((entry) => (
-                    <article
-                      className={`voice-message voice-message--${entry.role}`}
-                      key={entry.id}
-                    >
-                      <p className="card-kicker">
-                        {entry.role === 'advisor' ? 'Advisor' : 'You'}
-                      </p>
-                      <p>{entry.text}</p>
-                    </article>
-                  ))
+                  transcript.map((entry) =>
+                    entry.role === 'tool_call' ? (
+                      <article
+                        className="voice-message voice-message--tool-call"
+                        key={entry.id}
+                      >
+                        <p className="voice-tool-call-name">
+                          {entry.tool_name}
+                        </p>
+                        {Object.entries(entry.args).map(([key, val]) => (
+                          <p className="voice-tool-call-arg" key={key}>
+                            <span className="voice-tool-call-arg-key">
+                              {key}:
+                            </span>{' '}
+                            {String(val)}
+                          </p>
+                        ))}
+                      </article>
+                    ) : (
+                      <article
+                        className={`voice-message voice-message--${entry.role}`}
+                        key={entry.id}
+                      >
+                        <p className="card-kicker">
+                          {entry.role === 'advisor' ? 'Advisor' : 'You'}
+                        </p>
+                        <p>{entry.text}</p>
+                      </article>
+                    ),
+                  )
                 )}
                 <div ref={transcriptEndRef} />
               </div>
