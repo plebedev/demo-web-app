@@ -31,6 +31,11 @@ describe('MessyNotesAbout', () => {
     expect(screen.getByText('What it does')).toBeInTheDocument();
     expect(screen.getByText('Guardrails')).toBeInTheDocument();
     expect(screen.getByText('Not yet implemented')).toBeInTheDocument();
+    expect(screen.getByText('Local SLM option')).toBeInTheDocument();
+    expect(screen.getByText(/messy-brief-local/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/learning and demonstration purposes/),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/phase.?1/i)).toBeNull();
     expect(screen.queryByText(/phase-1/i)).toBeNull();
   });
