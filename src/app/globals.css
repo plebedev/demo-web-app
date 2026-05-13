@@ -614,8 +614,24 @@ a {
   min-height: 100%;
 }
 
+.section-card--wide {
+  grid-column: 1 / -1;
+}
+
+.section-stack {
+  display: grid;
+  align-self: start;
+  gap: 1rem;
+}
+
 .section-card h3 {
   font-size: 1.75rem;
+}
+
+.section-copy {
+  margin: 1rem 0 0;
+  color: var(--muted);
+  line-height: 1.75;
 }
 
 .section-list {
@@ -623,6 +639,31 @@ a {
   padding-left: 1.1rem;
   color: var(--muted);
   line-height: 1.75;
+}
+
+.deployment-pipeline {
+  display: grid;
+  gap: 1rem;
+}
+
+.deployment-pipeline__figure {
+  margin: 0;
+}
+
+.deployment-pipeline__body {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  align-items: start;
+  gap: 1.2rem;
+}
+
+.deployment-pipeline__body .section-list {
+  columns: 2;
+  column-gap: 1.6rem;
+}
+
+.deployment-pipeline__body .section-list li {
+  break-inside: avoid;
 }
 
 .status-card {
@@ -1547,6 +1588,8 @@ a {
   .section-columns,
   .section-columns--triple,
   .architecture-grid,
+  .deployment-pipeline,
+  .deployment-pipeline__body,
   .experience-actions,
   .experience-control-row,
   .overview-strip,
@@ -1582,6 +1625,10 @@ a {
   .section-detail--compact {
     max-width: none;
     text-align: left;
+  }
+
+  .deployment-pipeline__body .section-list {
+    columns: 1;
   }
 
   .editor-sidebar {

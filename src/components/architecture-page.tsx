@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import React from 'react';
 
@@ -549,6 +550,64 @@ export function ArchitecturePage() {
             </ul>
           </article>
 
+          <article className="section-card section-card--wide">
+            <p className="card-kicker">Deployment</p>
+            <div className="deployment-pipeline">
+              <figure className="deployment-pipeline__figure">
+                <Image
+                  alt="Registry-free deployment pipeline for demo-service"
+                  className="arch-diagram"
+                  height={520}
+                  src="/architecture/matx-demo-deploy-pipeline.svg"
+                  width={680}
+                />
+              </figure>
+              <div className="deployment-pipeline__body">
+                <p className="section-copy">
+                  There is no image registry in the deployment path. Images are
+                  built locally, saved as tar files, copied to the Oracle Cloud
+                  VM with <code>scp</code>, imported directly into k3s, then
+                  deployed with Helm.
+                </p>
+                <ul className="section-list">
+                  <li>
+                    Image tags use the current short git SHA, so the deployed
+                    state traces back to an exact commit.
+                  </li>
+                  <li>
+                    The registry-free path is deliberate: it avoids a paid
+                    registry dependency and keeps each deploy as a
+                    self-contained artifact.
+                  </li>
+                  <li>
+                    Rollback is <code>helm rollback</code> plus a previously
+                    shipped image tar.
+                  </li>
+                  <li>
+                    The Rust <code>text-tools</code> sidecar follows the same
+                    pipeline with its own Helm chart, so backend and sidecar
+                    deploys stay independent.
+                  </li>
+                  <li>
+                    Runtime target: single-node k3s on an Oracle Cloud VM, with
+                    Traefik exposing the frontend and the backend remaining
+                    internal-only through cluster DNS.
+                  </li>
+                  <li>
+                    Public URL:{' '}
+                    <a
+                      href="https://demo.lebedev.ai"
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      demo.lebedev.ai
+                    </a>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </article>
+
           <article className="section-card">
             <p className="card-kicker">Tech stack</p>
             <ul className="section-list">
@@ -580,64 +639,42 @@ export function ArchitecturePage() {
             </ul>
           </article>
 
-          <article className="section-card">
-            <p className="card-kicker">Deployment</p>
-            <ul className="section-list">
-              <li>Single-node k3s on Oracle Cloud VM.</li>
-              <li>
-                Traefik ingress — frontend is public, backend is internal-only
-                via cluster DNS.
-              </li>
-              <li>
-                No image registry: build locally → save tar → scp to VM →{' '}
-                <code>k3s ctr images import</code> → <code>helm upgrade</code>.
-              </li>
-              <li>Image tags are the current short git SHA.</li>
-              <li>
-                Public URL:{' '}
-                <a
-                  href="https://demo.lebedev.ai"
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  demo.lebedev.ai
-                </a>
-              </li>
-            </ul>
-          </article>
+          <div className="section-stack">
+            <article className="section-card">
+              <p className="card-kicker">Access model</p>
+              <ul className="section-list">
+                <li>User enters an invitation code on the Access Hub.</li>
+                <li>
+                  Backend validates and issues a signed access token scoped to
+                  the experience.
+                </li>
+                <li>
+                  Frontend stores the token in localStorage per-experience.
+                </li>
+                <li>Protected routes and API calls require a valid token.</li>
+              </ul>
+            </article>
 
-          <article className="section-card">
-            <p className="card-kicker">Access model</p>
-            <ul className="section-list">
-              <li>User enters an invitation code on the Access Hub.</li>
-              <li>
-                Backend validates and issues a signed access token scoped to the
-                experience.
-              </li>
-              <li>Frontend stores the token in localStorage per-experience.</li>
-              <li>Protected routes and API calls require a valid token.</li>
-            </ul>
-          </article>
-
-          <article className="section-card">
-            <p className="card-kicker">Experiences</p>
-            <ul className="section-list">
-              <li>
-                <strong>Messy Notes</strong> — bounded multi-agent workflow that
-                turns raw notes into a structured brief. Local development can
-                switch to a simpler Ollama-backed LoRA SLM workflow for learning
-                and demonstration.
-              </li>
-              <li>
-                <strong>RAG Demo</strong> — persona-scoped document retrieval
-                with grounded answers and citations.
-              </li>
-              <li>
-                <strong>Voice Demo</strong> — browser and phone access to a
-                persona-configured voice advisor via xAI or OpenAI realtime.
-              </li>
-            </ul>
-          </article>
+            <article className="section-card">
+              <p className="card-kicker">Experiences</p>
+              <ul className="section-list">
+                <li>
+                  <strong>Messy Notes</strong> — bounded multi-agent workflow
+                  that turns raw notes into a structured brief. Local
+                  development can switch to a simpler Ollama-backed LoRA SLM
+                  workflow for learning and demonstration.
+                </li>
+                <li>
+                  <strong>RAG Demo</strong> — persona-scoped document retrieval
+                  with grounded answers and citations.
+                </li>
+                <li>
+                  <strong>Voice Demo</strong> — browser and phone access to a
+                  persona-configured voice advisor via xAI or OpenAI realtime.
+                </li>
+              </ul>
+            </article>
+          </div>
         </div>
       </section>
     </main>

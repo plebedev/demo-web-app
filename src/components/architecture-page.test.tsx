@@ -56,5 +56,12 @@ describe('ArchitecturePage', () => {
     expect(screen.getByText('Repositories')).toBeInTheDocument();
     expect(screen.getByText(/messy-brief-local/)).toBeInTheDocument();
     expect(screen.getByText(/LoRA-tuned Qwen2.5 1.5B/)).toBeInTheDocument();
+    expect(
+      screen.getByRole('img', {
+        name: 'Registry-free deployment pipeline for demo-service',
+      }),
+    ).toHaveAttribute('src', '/architecture/matx-demo-deploy-pipeline.svg');
+    expect(screen.getByText(/There is no image registry/)).toBeInTheDocument();
+    expect(screen.getByText(/self-contained artifact/)).toBeInTheDocument();
   });
 });
