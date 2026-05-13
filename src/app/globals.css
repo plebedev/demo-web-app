@@ -177,6 +177,110 @@ a {
   font-weight: 700;
 }
 
+.sms-consent-shell {
+  width: min(980px, calc(100% - 2rem));
+}
+
+.sms-consent-document {
+  display: grid;
+  gap: 1.6rem;
+}
+
+.sms-consent-document section {
+  display: grid;
+  gap: 1rem;
+}
+
+.sms-consent-document h2 {
+  margin-bottom: 0;
+}
+
+.sms-mockup-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.sms-consent-mockup {
+  display: grid;
+  gap: 1rem;
+  padding: 1.35rem;
+  border: 1px solid rgba(29, 79, 128, 0.15);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.sms-consent-mockup p {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.sms-consent-mockup__label {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  color: var(--text);
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.sms-consent-mockup__label input {
+  width: 1.35rem;
+  height: 1.35rem;
+  accent-color: #0b67c2;
+}
+
+.sms-consent-mockup__phone {
+  width: 100%;
+  min-height: 3.2rem;
+  padding: 0 1rem;
+  border: 1px solid rgba(29, 79, 128, 0.16);
+  border-radius: 18px;
+  color: var(--text);
+  font: inherit;
+  font-size: 1.05rem;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.sms-consent-mockup__action {
+  color: var(--accent) !important;
+  font-size: 1.1rem !important;
+}
+
+.sms-copy-list {
+  display: grid;
+  gap: 0.9rem;
+  margin: 0;
+}
+
+.sms-copy-list div,
+.sms-message-card {
+  padding: 1rem;
+  border: 1px solid rgba(29, 79, 128, 0.12);
+  border-radius: 16px;
+  background: rgba(247, 250, 249, 0.72);
+}
+
+.sms-copy-list dt,
+.sms-message-card strong {
+  color: var(--text);
+  font-weight: 800;
+}
+
+.sms-copy-list dd,
+.sms-message-card p {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.sms-message-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
 .topbar-status {
   margin: 0;
   padding: 0.55rem 0.8rem;
@@ -1585,6 +1689,8 @@ a {
 
   .hero,
   .workspace-hero,
+  .sms-mockup-grid,
+  .sms-message-list,
   .section-columns,
   .section-columns--triple,
   .architecture-grid,
