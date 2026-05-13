@@ -42,8 +42,8 @@ export function MessyNotesAbout() {
                 extractable text.
               </li>
               <li>
-                Runs a bounded multi-agent workflow that extracts metadata and
-                produces a structured brief.
+                Runs either the hosted bounded multi-agent workflow or a local
+                Ollama workflow backed by a LoRA-tuned small model.
               </li>
               <li>
                 Persists run events, tool call arguments, the final brief, and a
@@ -287,6 +287,30 @@ export function MessyNotesAbout() {
               <li>
                 Run events, tool arguments, final brief output, and audit
                 results are persisted for inspection.
+              </li>
+            </ul>
+          </article>
+
+          <article className="section-card">
+            <p className="card-kicker">Local SLM option</p>
+            <ul className="section-list">
+              <li>
+                Local development can switch to{' '}
+                <code>messy-notes-local-slm</code>, which calls Ollama model{' '}
+                <code>messy-brief-local</code>.
+              </li>
+              <li>
+                That model is a Qwen2.5 1.5B LoRA experiment trained to practice
+                the notes-to-JSON transformation.
+              </li>
+              <li>
+                It is included for learning and demonstration purposes, not as a
+                production serving recommendation.
+              </li>
+              <li>
+                The local path is intentionally simpler than the hosted
+                multi-agent workflow, so its audit has fewer tool and handoff
+                events.
               </li>
             </ul>
           </article>

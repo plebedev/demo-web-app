@@ -34,6 +34,13 @@ describe('ArchitecturePage', () => {
       'href',
       'https://github.com/plebedev/demo-service',
     );
+    const slmLink = screen.getByRole('link', {
+      name: 'github.com/plebedev/messy-brief-slm',
+    });
+    expect(slmLink).toHaveAttribute(
+      'href',
+      'https://github.com/plebedev/messy-brief-slm',
+    );
   });
 
   it('shows Access hub nav link', () => {
@@ -47,5 +54,7 @@ describe('ArchitecturePage', () => {
     expect(screen.getByText('Tech stack')).toBeInTheDocument();
     expect(screen.getByText('Deployment')).toBeInTheDocument();
     expect(screen.getByText('Repositories')).toBeInTheDocument();
+    expect(screen.getByText(/messy-brief-local/)).toBeInTheDocument();
+    expect(screen.getByText(/LoRA-tuned Qwen2.5 1.5B/)).toBeInTheDocument();
   });
 });
