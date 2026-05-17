@@ -1,4 +1,9 @@
-export const experienceIds = ['messy-notes', 'rag-demo', 'voice-demo'] as const;
+export const experienceIds = [
+  'messy-notes',
+  'context-workbench',
+  'rag-demo',
+  'voice-demo',
+] as const;
 
 export type ExperienceId = (typeof experienceIds)[number];
 
@@ -22,6 +27,15 @@ export const fallbackExperiences: Experience[] = [
     description:
       'Turn pasted text, text files, or extractable PDFs into a structured brief.',
     route: '/messy-notes',
+    available: true,
+    invite_request_available: true,
+  },
+  {
+    id: 'context-workbench',
+    label: 'Context Workbench',
+    description:
+      'A source-grounded Context Engine experience powered by reusable domain packs.',
+    route: '/context-workbench',
     available: true,
     invite_request_available: true,
   },

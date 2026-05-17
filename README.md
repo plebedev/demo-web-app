@@ -1,6 +1,6 @@
 # Invite-Only Demo Frontend
 
-This repository is the invite-only frontend/BFF for the phase-1 demo. It stays intentionally small, but it now includes the browser-facing invite gate at `/`, signed-token persistence, the protected `/messy-notes` demo workspace, and explicit demo guardrails.
+This repository is the invite-only frontend/BFF for the phase-1 demo. It stays intentionally small, but it now includes the browser-facing invite gate at `/`, signed-token persistence, protected demo workspaces, and explicit demo guardrails.
 
 The live demo is deployed at [demo.lebedev.ai](https://demo.lebedev.ai).
 
@@ -8,6 +8,8 @@ The live demo is deployed at [demo.lebedev.ai](https://demo.lebedev.ai).
 
 - Next.js app with an invite-only phase-1 shell
 - Protected `/messy-notes` workspace for run creation, editing, status viewing, and history
+- Protected `/context-workbench` shell for the first Context Engine-powered experience
+- `/context-workbench/about` page explaining Context Engine, domain packs, provenance, limitations, and direction
 - `/messy-notes/<runId>` ingestion UI for pasted text, file uploads, and honest boundary reporting
 - `/messy-notes/<runId>` result UI for completed brief output, execution summary, and audit summary
 - Health endpoint at `/api/health`
@@ -37,7 +39,11 @@ The live demo is deployed at [demo.lebedev.ai](https://demo.lebedev.ai).
 |   |       `-- templates/
 |   `-- scripts/
 `-- src/
-    `-- app/
+    |-- app/
+    |   |-- context-workbench/
+    |   `-- messy-notes/
+    |-- components/
+    `-- lib/
 ```
 
 ## Prerequisites
@@ -104,6 +110,22 @@ Follow-up rules:
 Submitting a run executes the bounded messy-notes workflow. The current brief
 formatter is intentionally simple and heuristic; completed runs show the brief,
 recent execution events, and the post-run audit summary.
+
+## Context Workbench
+
+`/context-workbench` is the first minimal Context Engine experience shell. It
+reuses the existing invite-code token storage, protected route hook, and
+`/api/bff/*` proxy. Browser code does not call the backend directly.
+
+Current scope:
+
+- loads `job_search` domain metadata from `/api/bff/context/domains/job_search`
+- lists registered artifact types and perspective views
+- lists owner-scoped actionable items from `/api/bff/context/domains/job_search/tasks`
+- provides `/context-workbench/about` for user-facing architecture and limitation context
+
+It intentionally does not include a production dashboard, autonomous execution,
+OCR, image understanding, audio/video parsing, or web lookup.
 
 ## M6 demo polish
 
