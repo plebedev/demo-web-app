@@ -52,6 +52,7 @@ describe('ArchitecturePage', () => {
   it('shows tech stack and deployment sections', () => {
     render(<ArchitecturePage />);
     expect(screen.getByText('Tech stack')).toBeInTheDocument();
+    expect(screen.getByText('Context Engine')).toBeInTheDocument();
     expect(screen.getByText('Deployment')).toBeInTheDocument();
     expect(screen.getByText('Repositories')).toBeInTheDocument();
     expect(screen.getByText(/messy-brief-local/)).toBeInTheDocument();

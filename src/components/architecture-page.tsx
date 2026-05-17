@@ -641,6 +641,31 @@ export function ArchitecturePage() {
 
           <div className="section-stack">
             <article className="section-card">
+              <p className="card-kicker">Context Engine</p>
+              <ul className="section-list">
+                <li>
+                  Shared backend capability for domain-pack-driven context
+                  infrastructure across experiences and future domains.
+                </li>
+                <li>
+                  Core owns generic artifact ingestion, chunking, provenance,
+                  extraction orchestration, signals, views, tasks, and domain
+                  registration.
+                </li>
+                <li>
+                  Domain packs own artifact types, extractors, perspective
+                  builders, task generators, views, prompts, and interpretation
+                  rules.
+                </li>
+                <li>
+                  Source links preserve where derived context came from so
+                  future experiences can show evidence instead of unsupported
+                  claims.
+                </li>
+              </ul>
+            </article>
+
+            <article className="section-card">
               <p className="card-kicker">Access model</p>
               <ul className="section-list">
                 <li>User enters an invitation code on the Access Hub.</li>
