@@ -130,6 +130,17 @@ export function ContextWorkbenchAbout() {
           </article>
 
           <article className="section-card section-card--wide">
+            <p className="card-kicker">LLM assistance</p>
+            <p className="section-copy">
+              Model-backed extraction and synthesis are bounded by configured
+              Context Engine flows. Outputs must cite provided source chunks,
+              distinguish explicit facts from inferences, and fall back to
+              deterministic context if model execution is disabled or
+              unavailable.
+            </p>
+          </article>
+
+          <article className="section-card section-card--wide">
             <p className="card-kicker">Current limits</p>
             <ul className="section-list">
               <li>

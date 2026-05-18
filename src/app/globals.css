@@ -833,10 +833,15 @@ a {
 .context-mini-section span,
 .context-artifact-row span,
 .context-evidence span,
-.context-suitability {
+.context-suitability,
+.context-generation-status {
   color: var(--muted);
   font-size: 0.92rem;
   line-height: 1.45;
+}
+
+.context-generation-status {
+  margin: 0.45rem 0 0;
 }
 
 .context-tabs {
