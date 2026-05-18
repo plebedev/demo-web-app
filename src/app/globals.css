@@ -804,6 +804,410 @@ a {
   box-shadow: 0 0 0 0.35rem rgba(164, 70, 70, 0.14);
 }
 
+.context-workbench {
+  display: grid;
+  gap: 1rem;
+}
+
+.context-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.32fr);
+  align-items: end;
+  gap: 1rem;
+}
+
+.context-status-panel {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.context-status-panel strong {
+  font-size: 1.1rem;
+}
+
+.context-status-panel span,
+.context-mini-section span,
+.context-artifact-row span,
+.context-evidence span,
+.context-suitability {
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.context-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.context-tab {
+  padding: 0.62rem 0.9rem;
+  border: 1px solid rgba(29, 79, 128, 0.16);
+  border-radius: 999px;
+  color: var(--accent-strong);
+  font: inherit;
+  background: rgba(255, 255, 255, 0.62);
+  cursor: pointer;
+}
+
+.context-tab--active {
+  color: white;
+  background: var(--accent-strong);
+}
+
+.context-workbench-grid {
+  display: grid;
+  grid-template-columns: minmax(17rem, 0.36fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.context-side-panel,
+.context-main-panel,
+.context-panel-stack,
+.context-ingest-form,
+.context-artifact-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.context-side-panel {
+  position: sticky;
+  top: 7rem;
+}
+
+.context-ingest-form {
+  gap: 0.7rem;
+}
+
+.context-textarea {
+  min-height: 10rem;
+  resize: vertical;
+}
+
+.context-metadata {
+  min-height: 4.5rem;
+  resize: vertical;
+}
+
+.context-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 1rem 0 0;
+}
+
+.context-metrics div,
+.context-mini-section {
+  padding: 0.8rem;
+  border: 1px solid rgba(29, 79, 128, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.context-metrics dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.context-metrics dd {
+  margin: 0.2rem 0 0;
+  color: var(--accent-strong);
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.context-section-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.context-mini-section {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.context-two-column {
+  display: grid;
+  grid-template-columns: minmax(15rem, 0.4fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.context-artifact-row,
+.context-evidence {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.85rem;
+  border: 1px solid rgba(29, 79, 128, 0.12);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.68);
+  cursor: pointer;
+}
+
+.context-artifact-row--active,
+.context-artifact-row:hover,
+.context-evidence:hover {
+  border-color: rgba(29, 79, 128, 0.28);
+  background: rgba(29, 79, 128, 0.08);
+}
+
+.context-artifact-detail {
+  min-width: 0;
+}
+
+.context-metadata-block,
+.context-source-text {
+  max-width: 100%;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.context-metadata-block {
+  margin: 1rem 0 0;
+  padding: 0.8rem;
+  border-radius: 8px;
+  color: var(--accent-strong);
+  background: rgba(29, 79, 128, 0.08);
+}
+
+.context-source-text {
+  max-height: 34rem;
+  margin: 1rem 0 0;
+  padding: 1rem;
+  border: 1px solid rgba(29, 79, 128, 0.12);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.9rem;
+  line-height: 1.65;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.context-chunk-list {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.context-chunk {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(29, 79, 128, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.context-chunk span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.context-chunk p {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.context-section-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.context-section-heading-row > span {
+  flex: 0 0 auto;
+}
+
+.context-perspective-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.34fr);
+  gap: 1rem;
+  align-items: end;
+}
+
+.context-toolbar-controls {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.context-decision-block {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(29, 79, 128, 0.12);
+}
+
+.context-section-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.context-section-badges span,
+.context-evidence-header span,
+.context-task-group-heading span {
+  padding: 0.38rem 0.56rem;
+  border-radius: 999px;
+  color: var(--accent-strong);
+  font-size: 0.78rem;
+  font-weight: 800;
+  background: rgba(29, 79, 128, 0.1);
+}
+
+.context-section-body {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.context-synthesis {
+  padding: 0.95rem;
+  border: 1px solid rgba(35, 123, 86, 0.16);
+  border-radius: 8px;
+  background: rgba(35, 123, 86, 0.08);
+}
+
+.context-rationale,
+.context-inferred-signals,
+.context-action-rationale {
+  padding: 0.95rem;
+  border: 1px solid rgba(29, 79, 128, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.context-synthesis p,
+.context-rationale p,
+.context-action-rationale p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.context-rationale {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.context-label {
+  margin: 0 0 0.35rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.context-inferred-signals ul {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding-left: 1.1rem;
+  line-height: 1.55;
+}
+
+.context-bullets {
+  display: grid;
+  gap: 0.5rem;
+  margin: 1rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--text);
+  line-height: 1.65;
+}
+
+.context-evidence-wrap {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.context-evidence-header,
+.context-task-group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.context-evidence-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.context-evidence q {
+  color: var(--accent-strong);
+  line-height: 1.45;
+}
+
+.context-evidence-toggle {
+  justify-self: start;
+}
+
+.context-readiness {
+  padding: 0.45rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.context-readiness--ready_for_agent {
+  color: #0f5132;
+  background: rgba(35, 123, 86, 0.16);
+}
+
+.context-readiness--needs_human_clarification,
+.context-readiness--needs_decision {
+  color: #70440f;
+  background: rgba(196, 149, 106, 0.22);
+}
+
+.context-readiness--needs_source_material,
+.context-readiness--needs_review {
+  color: var(--accent-strong);
+  background: rgba(29, 79, 128, 0.12);
+}
+
+.context-readiness--blocked {
+  color: #7f1d1d;
+  background: rgba(164, 70, 70, 0.16);
+}
+
+.context-task-card {
+  border-left: 4px solid rgba(29, 79, 128, 0.42);
+}
+
+.context-task-group {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.context-task-group-heading h3 {
+  margin: 0;
+}
+
+.context-action-rationale {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+  margin-top: 0.85rem;
+}
+
 .shell--workspace {
   padding-bottom: 3rem;
 }
@@ -1698,6 +2102,12 @@ a {
   .deployment-pipeline__body,
   .experience-actions,
   .experience-control-row,
+  .context-heading,
+  .context-workbench-grid,
+  .context-two-column,
+  .context-perspective-toolbar,
+  .context-action-rationale,
+  .context-section-grid,
   .overview-strip,
   .rag-chat-grid,
   .rag-config-grid,
@@ -1740,6 +2150,10 @@ a {
   .editor-sidebar {
     position: static;
     max-height: none;
+  }
+
+  .context-side-panel {
+    position: static;
   }
 
   .run-sidebar-list {

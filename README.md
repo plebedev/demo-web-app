@@ -1,6 +1,6 @@
 # Invite-Only Demo Frontend
 
-This repository is the invite-only frontend/BFF for the phase-1 demo. It stays intentionally small, but it now includes the browser-facing invite gate at `/`, signed-token persistence, the protected `/messy-notes` demo workspace, and explicit demo guardrails.
+This repository is the invite-only frontend/BFF for the phase-1 demo. It stays intentionally small, but it now includes the browser-facing invite gate at `/`, signed-token persistence, protected demo workspaces, and explicit demo guardrails.
 
 The live demo is deployed at [demo.lebedev.ai](https://demo.lebedev.ai).
 
@@ -8,6 +8,9 @@ The live demo is deployed at [demo.lebedev.ai](https://demo.lebedev.ai).
 
 - Next.js app with an invite-only phase-1 shell
 - Protected `/messy-notes` workspace for run creation, editing, status viewing, and history
+- Protected `/context-workbench` experience for contextual ingestion,
+  source-grounded perspectives, and actionable-item triage
+- `/context-workbench/about` page explaining Context Engine, domain packs, provenance, limitations, and direction
 - `/messy-notes/<runId>` ingestion UI for pasted text, file uploads, and honest boundary reporting
 - `/messy-notes/<runId>` result UI for completed brief output, execution summary, and audit summary
 - Health endpoint at `/api/health`
@@ -37,7 +40,11 @@ The live demo is deployed at [demo.lebedev.ai](https://demo.lebedev.ai).
 |   |       `-- templates/
 |   `-- scripts/
 `-- src/
-    `-- app/
+    |-- app/
+    |   |-- context-workbench/
+    |   `-- messy-notes/
+    |-- components/
+    `-- lib/
 ```
 
 ## Prerequisites
@@ -104,6 +111,55 @@ Follow-up rules:
 Submitting a run executes the bounded messy-notes workflow. The current brief
 formatter is intentionally simple and heuristic; completed runs show the brief,
 recent execution events, and the post-run audit summary.
+
+## Context Workbench
+
+`/context-workbench` is the first usable Context Engine experience. It
+reuses the existing invite-code token storage, protected route hook, and
+`/api/bff/*` proxy. Browser code does not call the backend directly.
+
+Current scope:
+
+- loads `job_search` domain metadata from `/api/bff/context/domains/job_search`
+- ingests pasted text or uploaded text/PDF artifacts through generic Context Engine APIs
+- lists owner-scoped persisted artifacts from `/api/bff/context/domains/job_search/artifacts`
+- generates Role Fit, Interview Prep, Resume Positioning, Application Pipeline,
+  and Compensation and Scope Risk perspectives
+- renders each perspective as decision summary, rationale, supporting evidence,
+  and additional signals
+- groups repeated evidence, shows only top sources first, and lets users expand
+  for more provenance detail
+- lists owner-scoped actionable items from `/api/bff/context/domains/job_search/actionable-items`
+- groups actionable items by readiness and explains rationale, evidence, and
+  human-vs-agent suitability
+- provides `/context-workbench/about` for user-facing architecture and limitation context
+
+It intentionally does not include a production dashboard, autonomous execution,
+OCR, image understanding, audio/video parsing, or web lookup.
+
+### Perspective rendering model
+
+The workbench treats perspective sections as decision-support surfaces, not
+debugging output. The visual hierarchy is:
+
+1. synthesized decision summary
+2. why it matters and what implication follows
+3. grouped supporting evidence with provenance access
+4. additional extracted or inferred signals
+
+Evidence is grouped by source, excerpt, and note to reduce repeated cards. The
+first three grouped sources are shown by default; users can expand the section
+when they need a fuller evidence trail. Confidence is intentionally coarse
+(`High confidence`, `Medium confidence`, `Low confidence`) and is based on the
+presence and kind of supporting evidence, not fake percentages.
+
+Actionable items are operational triage records. The UI keeps
+`ready_for_agent`, `needs_human_clarification`, `needs_source_material`,
+`needs_decision`, `needs_review`, and `blocked` visually distinct while still
+showing the source evidence behind each recommendation. No execution agent is
+invoked.
+
+More detail lives in [docs/context-workbench-ux.md](/Users/plebedev/github/demo/demo-web-app/docs/context-workbench-ux.md).
 
 ## M6 demo polish
 
