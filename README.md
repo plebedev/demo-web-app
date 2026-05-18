@@ -8,7 +8,8 @@ The live demo is deployed at [demo.lebedev.ai](https://demo.lebedev.ai).
 
 - Next.js app with an invite-only phase-1 shell
 - Protected `/messy-notes` workspace for run creation, editing, status viewing, and history
-- Protected `/context-workbench` shell for the first Context Engine-powered experience
+- Protected `/context-workbench` experience for contextual ingestion,
+  source-grounded perspectives, and actionable-item triage
 - `/context-workbench/about` page explaining Context Engine, domain packs, provenance, limitations, and direction
 - `/messy-notes/<runId>` ingestion UI for pasted text, file uploads, and honest boundary reporting
 - `/messy-notes/<runId>` result UI for completed brief output, execution summary, and audit summary
@@ -113,15 +114,21 @@ recent execution events, and the post-run audit summary.
 
 ## Context Workbench
 
-`/context-workbench` is the first minimal Context Engine experience shell. It
+`/context-workbench` is the first usable Context Engine experience. It
 reuses the existing invite-code token storage, protected route hook, and
 `/api/bff/*` proxy. Browser code does not call the backend directly.
 
 Current scope:
 
 - loads `job_search` domain metadata from `/api/bff/context/domains/job_search`
-- lists registered artifact types and perspective views
+- ingests pasted text or uploaded text/PDF artifacts through generic Context Engine APIs
+- lists owner-scoped persisted artifacts from `/api/bff/context/domains/job_search/artifacts`
+- generates Role Fit, Interview Prep, Resume Positioning, Application Pipeline,
+  and Compensation and Scope Risk perspectives
+- renders source evidence and lets users navigate from conclusions back to artifacts
 - lists owner-scoped actionable items from `/api/bff/context/domains/job_search/tasks`
+- distinguishes agent-suitable work from human clarification, decision, source-gap,
+  review, and blocked work
 - provides `/context-workbench/about` for user-facing architecture and limitation context
 
 It intentionally does not include a production dashboard, autonomous execution,

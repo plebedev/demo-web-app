@@ -649,8 +649,8 @@ export function ArchitecturePage() {
                 </li>
                 <li>
                   Core owns generic artifact ingestion, chunking, provenance,
-                  extraction orchestration, signals, views, tasks, and domain
-                  registration.
+                  extraction orchestration, persisted signals, generated views,
+                  actionable items, and domain registration.
                 </li>
                 <li>
                   Domain packs own artifact types, extractors, perspective
@@ -659,8 +659,8 @@ export function ArchitecturePage() {
                 </li>
                 <li>
                   Source links preserve where derived context came from so
-                  future experiences can show evidence instead of unsupported
-                  claims.
+                  experiences can show evidence, linked artifacts, and explicit
+                  inference labels instead of unsupported claims.
                 </li>
               </ul>
             </article>

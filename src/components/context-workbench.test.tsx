@@ -68,6 +68,24 @@ describe('ContextWorkbench', () => {
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         );
       }
+      if (url.endsWith('/api/bff/context/domains/job_search/artifacts')) {
+        return new Response(
+          JSON.stringify({
+            artifacts: [
+              {
+                id: 'art_1',
+                artifact_type_id: 'job_description',
+                title: 'Platform role',
+                text: 'Title: Staff Platform Engineer',
+                source_uri: 'memory://role',
+                metadata: { stage: 'screen' },
+                created_at: '2026-05-17T00:00:00Z',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
       if (url.endsWith('/api/bff/context/domains/job_search/tasks')) {
         return new Response(
           JSON.stringify({
@@ -76,9 +94,50 @@ describe('ContextWorkbench', () => {
                 id: 'task_1',
                 item_type: 'prepare_interview_brief',
                 title: 'Prepare interview brief',
+                description: 'Create a source-grounded brief.',
                 readiness_status: 'needs_review',
+                source_links: [
+                  {
+                    artifact_id: 'art_1',
+                    chunk_id: 'chunk_1',
+                    label: 'job_description',
+                    excerpt: 'Title: Staff Platform Engineer',
+                  },
+                ],
               },
             ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      if (url.endsWith('/api/bff/context/domains/job_search/views/role_fit')) {
+        return new Response(
+          JSON.stringify({
+            view: {
+              id: 'view_1',
+              view_definition_id: 'role_fit',
+              title: 'Role Fit',
+              sections: [
+                {
+                  id: 'strong_matches',
+                  title: 'Strong Matches',
+                  content: '- Staff Platform Engineer',
+                  evidence_links: [
+                    {
+                      source: {
+                        artifact_id: 'art_1',
+                        chunk_id: 'chunk_1',
+                        label: 'role title',
+                        excerpt: 'Staff Platform Engineer',
+                      },
+                      confidence: 0.95,
+                      note: 'Role title (explicit)',
+                    },
+                  ],
+                  metadata: { evidence_kinds: ['explicit'] },
+                },
+              ],
+            },
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         );
@@ -90,7 +149,8 @@ describe('ContextWorkbench', () => {
     render(<ContextWorkbench />);
 
     expect(await screen.findByText('Job Search / Career Context')).toBeTruthy();
-    expect(screen.getByText('Job Description')).toBeTruthy();
+    expect(screen.getByText('Job Description: 1')).toBeTruthy();
+    expect(await screen.findByText('Strong Matches')).toBeTruthy();
     expect(screen.getByText('Role Fit')).toBeTruthy();
     await waitFor(() => {
       expect(mockUseProtectedAccess).toHaveBeenCalledWith('context-workbench', {
@@ -102,6 +162,10 @@ describe('ContextWorkbench', () => {
       );
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/bff/context/domains/job_search',
+        expect.any(Object),
+      );
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/bff/context/domains/job_search/artifacts',
         expect.any(Object),
       );
     });
@@ -121,7 +185,7 @@ describe('ContextWorkbench', () => {
 
     render(<ContextWorkbench />);
 
-    expect(screen.getByText('Domain workbench.')).toBeTruthy();
+    expect(screen.getByText('Contextual workbench.')).toBeTruthy();
     expect(
       screen.queryByText('Job Search domain pack shell.'),
     ).not.toBeInTheDocument();
@@ -147,11 +211,11 @@ describe('ContextWorkbench', () => {
     render(<ContextWorkbenchAbout />);
 
     expect(
-      screen.getByText('Reusable context, grounded in source material.'),
+      screen.getByText('Source-grounded context, not another chat box.'),
     ).toBeTruthy();
     expect(
       screen.getByText(
-        'No autonomous execution or production-grade dashboard yet.',
+        'No autonomous execution, MCP exposure, graph DB, or separate vector DB.',
       ),
     ).toBeTruthy();
   });
