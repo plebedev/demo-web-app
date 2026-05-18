@@ -6,6 +6,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -189,6 +190,7 @@ export function ContextWorkbench() {
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [lastIngest, setLastIngest] = useState<IngestResponse | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const selectedArtifact = useMemo(
     () =>
@@ -456,7 +458,7 @@ export function ContextWorkbench() {
         sourceUri: '',
         metadata: '',
       }));
-      setSelectedFile(null);
+      clearSelectedFile();
       setStatus('Artifact ingested and extracted');
       setActiveTab('overview');
     } catch (caught) {
@@ -474,6 +476,20 @@ export function ContextWorkbench() {
     setSelectedFile(file);
     if (file && !form.title) {
       setForm((current) => ({ ...current, title: file.name }));
+    }
+  }
+
+  function clearSelectedFile() {
+    const clearedFileName = selectedFile?.name;
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    if (clearedFileName) {
+      setForm((current) => ({
+        ...current,
+        title: current.title === clearedFileName ? '' : current.title,
+      }));
     }
   }
 
@@ -654,8 +670,18 @@ export function ContextWorkbench() {
                   className="text-input"
                   id="artifact-file"
                   onChange={handleFileChange}
+                  ref={fileInputRef}
                   type="file"
                 />
+                {selectedFile && (
+                  <button
+                    className="ghost-button"
+                    onClick={clearSelectedFile}
+                    type="button"
+                  >
+                    Clear file
+                  </button>
+                )}
 
                 <label className="field-label" htmlFor="artifact-text">
                   Paste text
@@ -979,8 +1005,8 @@ function PerspectivesPanel({
             <span>{section.evidence_links.length} sources</span>
           </div>
           <ul className="context-bullets">
-            {contentLines(section.content).map((line) => (
-              <li key={line}>{line}</li>
+            {contentLines(section.content).map((line, index) => (
+              <li key={`${section.id}-line-${index}`}>{line}</li>
             ))}
           </ul>
           <EvidenceList
