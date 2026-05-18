@@ -1032,6 +1032,96 @@ a {
   flex: 0 0 auto;
 }
 
+.context-perspective-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.34fr);
+  gap: 1rem;
+  align-items: end;
+}
+
+.context-toolbar-controls {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.context-decision-block {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(29, 79, 128, 0.12);
+}
+
+.context-section-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.context-section-badges span,
+.context-evidence-header span,
+.context-task-group-heading span {
+  padding: 0.38rem 0.56rem;
+  border-radius: 999px;
+  color: var(--accent-strong);
+  font-size: 0.78rem;
+  font-weight: 800;
+  background: rgba(29, 79, 128, 0.1);
+}
+
+.context-section-body {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.context-synthesis {
+  padding: 0.95rem;
+  border: 1px solid rgba(35, 123, 86, 0.16);
+  border-radius: 8px;
+  background: rgba(35, 123, 86, 0.08);
+}
+
+.context-rationale,
+.context-inferred-signals,
+.context-action-rationale {
+  padding: 0.95rem;
+  border: 1px solid rgba(29, 79, 128, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.context-synthesis p,
+.context-rationale p,
+.context-action-rationale p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.context-rationale {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.context-label {
+  margin: 0 0 0.35rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.context-inferred-signals ul {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding-left: 1.1rem;
+  line-height: 1.55;
+}
+
 .context-bullets {
   display: grid;
   gap: 0.5rem;
@@ -1041,15 +1131,32 @@ a {
   line-height: 1.65;
 }
 
-.context-evidence-list {
+.context-evidence-wrap {
   display: grid;
   gap: 0.65rem;
   margin-top: 1rem;
 }
 
+.context-evidence-header,
+.context-task-group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.context-evidence-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
 .context-evidence q {
   color: var(--accent-strong);
   line-height: 1.45;
+}
+
+.context-evidence-toggle {
+  justify-self: start;
 }
 
 .context-readiness {
@@ -1083,6 +1190,22 @@ a {
 
 .context-task-card {
   border-left: 4px solid rgba(29, 79, 128, 0.42);
+}
+
+.context-task-group {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.context-task-group-heading h3 {
+  margin: 0;
+}
+
+.context-action-rationale {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+  margin-top: 0.85rem;
 }
 
 .shell--workspace {
@@ -1982,6 +2105,8 @@ a {
   .context-heading,
   .context-workbench-grid,
   .context-two-column,
+  .context-perspective-toolbar,
+  .context-action-rationale,
   .context-section-grid,
   .overview-strip,
   .rag-chat-grid,

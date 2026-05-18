@@ -114,6 +114,55 @@ const READY_LABELS: Record<string, string> = {
   needs_review: 'Needs review',
 };
 
+const READINESS_ORDER = [
+  'ready_for_agent',
+  'needs_decision',
+  'needs_human_clarification',
+  'needs_source_material',
+  'needs_review',
+  'blocked',
+];
+
+const PERSPECTIVE_PROFILES: Record<
+  string,
+  {
+    question: string;
+    emphasis: string;
+    implication: string;
+  }
+> = {
+  role_fit: {
+    question: 'How strong is my fit?',
+    emphasis: 'Fit signal',
+    implication:
+      'Use this to decide whether the opportunity deserves more effort.',
+  },
+  interview_prep: {
+    question: 'What should I prepare for?',
+    emphasis: 'Preparation focus',
+    implication:
+      'Use this to choose stories, topics, and questions before the next conversation.',
+  },
+  resume_positioning: {
+    question: 'How should I position myself?',
+    emphasis: 'Positioning move',
+    implication:
+      'Use this to tighten resume language around the evidence already available.',
+  },
+  application_pipeline: {
+    question: 'What should I do next?',
+    emphasis: 'Operational next step',
+    implication:
+      'Use this to move the opportunity forward or expose the next blocker.',
+  },
+  compensation_scope_risk: {
+    question: 'Is this opportunity structurally attractive?',
+    emphasis: 'Scope and risk signal',
+    implication:
+      'Use this to decide what needs human judgment before committing further.',
+  },
+};
+
 function authHeaders(accessToken: string, contentType = true): HeadersInit {
   return {
     Authorization: `Bearer ${accessToken}`,
@@ -147,6 +196,124 @@ function contentLines(content: string | null) {
     .split('\n')
     .map((line) => line.trim().replace(/^- /, ''))
     .filter(Boolean);
+}
+
+function evidenceKindFromNote(note: string | null) {
+  const normalized = (note ?? '').toLowerCase();
+  if (normalized.includes('inferred')) {
+    return 'inferred';
+  }
+  if (
+    normalized.includes('human_judgment') ||
+    normalized.includes('judgment')
+  ) {
+    return 'human judgment';
+  }
+  return 'explicit';
+}
+
+function evidenceKindLabel(kind: string) {
+  if (kind === 'human_judgment') {
+    return 'human judgment';
+  }
+  return kind.replaceAll('_', ' ');
+}
+
+function evidenceKey(evidence: EvidenceLink) {
+  const excerpt = evidence.source.excerpt?.trim().toLowerCase() ?? '';
+  return [
+    evidence.source.artifact_id,
+    evidence.source.chunk_id ?? evidence.source.label ?? 'artifact',
+    evidence.note ?? 'source',
+    excerpt,
+  ].join('|');
+}
+
+function groupedEvidence(evidenceLinks: EvidenceLink[]) {
+  const groups = new Map<string, EvidenceLink & { count: number }>();
+  evidenceLinks.forEach((evidence) => {
+    const key = evidenceKey(evidence);
+    const existing = groups.get(key);
+    if (existing) {
+      existing.count += 1;
+      return;
+    }
+    groups.set(key, { ...evidence, count: 1 });
+  });
+  return [...groups.values()];
+}
+
+function confidenceLabel(section: ViewSection) {
+  const kinds = new Set(
+    ((section.metadata.evidence_kinds as string[] | undefined) ?? []).map(
+      evidenceKindLabel,
+    ),
+  );
+  const explicitCount = section.evidence_links.filter(
+    (evidence) => evidenceKindFromNote(evidence.note) === 'explicit',
+  ).length;
+  if (!section.evidence_links.length) {
+    return 'Low confidence';
+  }
+  if (explicitCount >= 3 || (explicitCount > 0 && kinds.has('explicit'))) {
+    return 'High confidence';
+  }
+  return 'Medium confidence';
+}
+
+function sectionRationale(section: ViewSection) {
+  const kinds = (
+    (section.metadata.evidence_kinds as string[] | undefined) ?? []
+  )
+    .map(evidenceKindLabel)
+    .filter(Boolean);
+  const signalTypes = (
+    (section.metadata.signal_types as string[] | undefined) ?? []
+  )
+    .map((signalType) => signalType.replaceAll('_', ' '))
+    .slice(0, 3);
+  if (signalTypes.length) {
+    return `Based on ${signalTypes.join(', ')} ${
+      signalTypes.length === 1 ? 'signal' : 'signals'
+    }${kinds.length ? ` with ${kinds.join(' and ')} evidence` : ''}.`;
+  }
+  const itemTypes = (
+    (section.metadata.item_types as string[] | undefined) ?? []
+  )
+    .map((itemType) => itemType.replaceAll('_', ' '))
+    .slice(0, 3);
+  if (itemTypes.length) {
+    return `Based on generated ${itemTypes.join(', ')} work items and their source links.`;
+  }
+  if (kinds.length) {
+    return `Based on ${kinds.join(' and ')} supporting material.`;
+  }
+  return 'The workbench has limited source material for this section.';
+}
+
+function sectionImplication(
+  view: PerspectiveView | null,
+  section: ViewSection,
+) {
+  const profile = view ? PERSPECTIVE_PROFILES[view.view_definition_id] : null;
+  if (!profile) {
+    return 'Review the evidence before turning this section into a decision or next action.';
+  }
+  const title = section.title.toLowerCase();
+  if (
+    title.includes('risk') ||
+    title.includes('concern') ||
+    title.includes('blocker')
+  ) {
+    return 'Clarify this before increasing commitment or delegating follow-up work.';
+  }
+  if (title.includes('missing') || title.includes('weak')) {
+    return 'Add source material or decide whether the gap is acceptable.';
+  }
+  if (title.includes('action') || title.includes('follow')) {
+    return 'Turn the highest-readiness item into the next operational step.';
+  }
+  return profile.implication;
 }
 
 function metadataText(metadata: Record<string, unknown>) {
@@ -968,47 +1135,56 @@ function PerspectivesPanel({
   setSelectedViewId: (viewId: string) => void;
   view: PerspectiveView | null;
 }>) {
+  const profile = view
+    ? (PERSPECTIVE_PROFILES[view.view_definition_id] ?? null)
+    : null;
   return (
     <div className="context-panel-stack">
-      <article className="section-card">
-        <p className="card-kicker">Perspective</p>
-        <select
-          className="select-input"
-          onChange={(event) => setSelectedViewId(event.target.value)}
-          value={selectedViewId}
-        >
-          {(domain?.views ?? []).map((registeredView) => (
-            <option key={registeredView.id} value={registeredView.id}>
-              {registeredView.display_name}
-            </option>
-          ))}
-        </select>
-        <button
-          className="secondary-button"
-          onClick={onRegenerate}
-          type="button"
-        >
-          Regenerate view
-        </button>
+      <article className="section-card context-perspective-toolbar">
+        <div>
+          <p className="card-kicker">Perspective</p>
+          <h3>{view?.title ?? 'Select a perspective'}</h3>
+          <p className="section-detail">
+            {profile?.question ??
+              'Read this view as a synthesis first, then inspect evidence when needed.'}
+          </p>
+        </div>
+        <div className="context-toolbar-controls">
+          <select
+            className="select-input"
+            onChange={(event) => setSelectedViewId(event.target.value)}
+            value={selectedViewId}
+          >
+            {(domain?.views ?? []).map((registeredView) => (
+              <option key={registeredView.id} value={registeredView.id}>
+                {registeredView.display_name}
+              </option>
+            ))}
+          </select>
+          <button
+            className="secondary-button"
+            onClick={onRegenerate}
+            type="button"
+          >
+            Regenerate view
+          </button>
+        </div>
       </article>
       {(view?.sections ?? []).map((section) => (
         <article className="section-card context-view-section" key={section.id}>
-          <div className="context-section-heading-row">
+          <div className="context-decision-block">
             <div>
-              <p className="card-kicker">
-                {(
-                  section.metadata.evidence_kinds as string[] | undefined
-                )?.join(' + ') ?? 'source grounded'}
-              </p>
+              <p className="card-kicker">{profile?.emphasis ?? 'Synthesis'}</p>
               <h3>{section.title}</h3>
             </div>
-            <span>{section.evidence_links.length} sources</span>
+            <div className="context-section-badges">
+              <span>{confidenceLabel(section)}</span>
+              <span>
+                {groupedEvidence(section.evidence_links).length} sources
+              </span>
+            </div>
           </div>
-          <ul className="context-bullets">
-            {contentLines(section.content).map((line, index) => (
-              <li key={`${section.id}-line-${index}`}>{line}</li>
-            ))}
-          </ul>
+          <PerspectiveSectionBody section={section} view={view} />
           <EvidenceList
             artifacts={artifacts}
             domain={domain}
@@ -1017,6 +1193,38 @@ function PerspectivesPanel({
           />
         </article>
       ))}
+    </div>
+  );
+}
+
+function PerspectiveSectionBody({
+  section,
+  view,
+}: Readonly<{ section: ViewSection; view: PerspectiveView | null }>) {
+  const lines = contentLines(section.content);
+  const conclusion = lines[0] ?? 'No synthesized conclusion yet.';
+  const supportingSignals = lines.slice(1, 4);
+  return (
+    <div className="context-section-body">
+      <div className="context-synthesis">
+        <p className="context-label">Decision summary</p>
+        <p>{conclusion}</p>
+      </div>
+      <div className="context-rationale">
+        <p className="context-label">Why it matters</p>
+        <p>{sectionRationale(section)}</p>
+        <p>{sectionImplication(view, section)}</p>
+      </div>
+      {supportingSignals.length ? (
+        <div className="context-inferred-signals">
+          <p className="context-label">Additional signals</p>
+          <ul>
+            {supportingSignals.map((line, index) => (
+              <li key={`${section.id}-signal-${index}`}>{line}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1032,43 +1240,75 @@ function ItemsPanel({
   onOpenArtifact: (artifactId: string) => void;
   tasks: Task[];
 }>) {
+  const groupedTasks = READINESS_ORDER.map((status) => ({
+    status,
+    tasks: tasks.filter((task) => task.readiness_status === status),
+  })).filter((group) => group.tasks.length);
+  const unknownTasks = tasks.filter(
+    (task) => !READINESS_ORDER.includes(task.readiness_status),
+  );
+  if (unknownTasks.length) {
+    groupedTasks.push({ status: 'other', tasks: unknownTasks });
+  }
   return (
     <div className="context-panel-stack">
       {tasks.length ? (
-        tasks.map((task) => (
-          <article className="section-card context-task-card" key={task.id}>
-            <div className="context-section-heading-row">
-              <div>
-                <p className="card-kicker">
-                  {task.item_type.replaceAll('_', ' ')}
-                </p>
-                <h3>{task.title}</h3>
-              </div>
-              <span
-                className={`context-readiness context-readiness--${task.readiness_status}`}
-              >
-                {READY_LABELS[task.readiness_status] ?? task.readiness_status}
-              </span>
+        groupedTasks.map((group) => (
+          <section className="context-task-group" key={group.status}>
+            <div className="context-task-group-heading">
+              <h3>{READY_LABELS[group.status] ?? 'Other readiness'}</h3>
+              <span>{group.tasks.length}</span>
             </div>
-            {task.description && (
-              <p className="section-detail">{task.description}</p>
-            )}
-            <p className="context-suitability">
-              {task.readiness_status === 'ready_for_agent'
-                ? 'Agent-suitable after review of the linked evidence.'
-                : 'Human judgment required before execution is delegated.'}
-            </p>
-            <EvidenceList
-              artifacts={artifacts}
-              domain={domain}
-              evidenceLinks={task.source_links.map((source) => ({
-                source,
-                confidence: null,
-                note: task.title,
-              }))}
-              onSelectArtifact={onOpenArtifact}
-            />
-          </article>
+            {group.tasks.map((task) => (
+              <article className="section-card context-task-card" key={task.id}>
+                <div className="context-section-heading-row">
+                  <div>
+                    <p className="card-kicker">
+                      {task.item_type.replaceAll('_', ' ')}
+                    </p>
+                    <h3>{task.title}</h3>
+                  </div>
+                  <span
+                    className={`context-readiness context-readiness--${task.readiness_status}`}
+                  >
+                    {READY_LABELS[task.readiness_status] ??
+                      task.readiness_status}
+                  </span>
+                </div>
+                {task.description && (
+                  <p className="section-detail">{task.description}</p>
+                )}
+                <div className="context-action-rationale">
+                  <div>
+                    <p className="context-label">Why this exists</p>
+                    <p>
+                      Generated from source-linked context that suggests this
+                      work may reduce uncertainty or move the opportunity
+                      forward.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="context-label">Suitability</p>
+                    <p>
+                      {task.readiness_status === 'ready_for_agent'
+                        ? 'Agent-suitable after human review of the linked evidence.'
+                        : 'Human-owned until the readiness state changes.'}
+                    </p>
+                  </div>
+                </div>
+                <EvidenceList
+                  artifacts={artifacts}
+                  domain={domain}
+                  evidenceLinks={task.source_links.map((source) => ({
+                    source,
+                    confidence: null,
+                    note: task.title,
+                  }))}
+                  onSelectArtifact={onOpenArtifact}
+                />
+              </article>
+            ))}
+          </section>
         ))
       ) : (
         <article className="section-card">
@@ -1095,23 +1335,54 @@ function EvidenceList({
   evidenceLinks: EvidenceLink[];
   onSelectArtifact: (artifactId: string) => void;
 }>) {
+  const [expanded, setExpanded] = useState(false);
+  const evidenceGroups = groupedEvidence(evidenceLinks);
+  const visibleEvidence = expanded
+    ? evidenceGroups
+    : evidenceGroups.slice(0, 3);
+  const hiddenCount = evidenceGroups.length - visibleEvidence.length;
+
   if (!evidenceLinks.length) {
     return <p className="section-detail">No supporting evidence yet.</p>;
   }
   return (
-    <div className="context-evidence-list">
-      {evidenceLinks.map((evidence, index) => (
+    <div className="context-evidence-wrap">
+      <div className="context-evidence-header">
+        <p className="context-label">Supporting evidence</p>
+        <span>
+          {evidenceGroups.length} grouped source
+          {evidenceGroups.length === 1 ? '' : 's'}
+        </span>
+      </div>
+      <div className="context-evidence-list">
+        {visibleEvidence.map((evidence, index) => (
+          <button
+            className="context-evidence"
+            key={`${evidence.source.artifact_id}-${evidence.source.chunk_id ?? index}-${index}`}
+            onClick={() => onSelectArtifact(evidence.source.artifact_id)}
+            type="button"
+          >
+            <strong>{sourceLabel(evidence.source, artifacts, domain)}</strong>
+            <span>
+              {evidenceKindLabel(evidenceKindFromNote(evidence.note))} ·{' '}
+              {evidence.note ?? 'Supporting source'}
+              {evidence.count > 1 ? ` · repeated ${evidence.count}x` : ''}
+            </span>
+            {evidence.source.excerpt && <q>{evidence.source.excerpt}</q>}
+          </button>
+        ))}
+      </div>
+      {hiddenCount > 0 || expanded ? (
         <button
-          className="context-evidence"
-          key={`${evidence.source.artifact_id}-${evidence.source.chunk_id ?? index}-${index}`}
-          onClick={() => onSelectArtifact(evidence.source.artifact_id)}
+          className="ghost-button context-evidence-toggle"
+          onClick={() => setExpanded((current) => !current)}
           type="button"
         >
-          <strong>{sourceLabel(evidence.source, artifacts, domain)}</strong>
-          <span>{evidence.note ?? 'Supporting source'}</span>
-          {evidence.source.excerpt && <q>{evidence.source.excerpt}</q>}
+          {expanded
+            ? 'Show top evidence only'
+            : `Show ${hiddenCount} more evidence source${hiddenCount === 1 ? '' : 's'}`}
         </button>
-      ))}
+      ) : null}
     </div>
   );
 }

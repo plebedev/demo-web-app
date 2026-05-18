@@ -35,17 +35,17 @@ export function ContextWorkbenchAbout() {
 
         <div className="architecture-grid">
           <article className="section-card section-card--tall">
-            <p className="card-kicker">Core concepts</p>
+            <p className="card-kicker">How to read it</p>
             <ul className="section-list">
               <li>
-                Artifacts preserve the original source text and provenance.
+                Start with the decision summary at the top of each section.
               </li>
               <li>
-                Chunks give derived outputs precise links back to source spans.
+                Use why-it-matters text to understand the operational meaning.
               </li>
-              <li>Signals capture explicit facts and labeled inferences.</li>
+              <li>Inspect grouped evidence only when you need verification.</li>
               <li>
-                Views assemble signals into perspective-specific sections.
+                Treat additional signals as supporting context, not the main UI.
               </li>
             </ul>
           </article>
@@ -69,17 +69,18 @@ export function ContextWorkbenchAbout() {
           </article>
 
           <article className="section-card section-card--tall">
-            <p className="card-kicker">Provenance philosophy</p>
+            <p className="card-kicker">Evidence model</p>
             <ul className="section-list">
+              <li>Synthesized conclusions are visually primary.</li>
               <li>
-                Outputs should show the source material that justifies them.
-              </li>
-              <li>Unsupported claims should remain absent, not polished up.</li>
-              <li>
-                Inferred signals are labeled separately from explicit evidence.
+                Explicit evidence and inferred conclusions are labeled
+                separately.
               </li>
               <li>
-                Human judgment remains visible where evidence is incomplete.
+                Top evidence appears first; repeated snippets are grouped.
+              </li>
+              <li>
+                Provenance remains available without becoming the primary layer.
               </li>
             </ul>
           </article>
@@ -91,17 +92,29 @@ export function ContextWorkbenchAbout() {
                 Items are triaged by readiness, not automatically executed.
               </li>
               <li>
-                Ready-for-agent work still points back to supporting sources.
+                Readiness separates agent-suitable, human-owned, decision, and
+                blocked work.
               </li>
               <li>
-                Human clarification, decisions, blockers, and source gaps stay
-                explicit.
+                Every item shows why it exists and which evidence supports it.
               </li>
               <li>
                 Execution agents are intentionally out of scope for this
                 milestone.
               </li>
             </ul>
+          </article>
+
+          <article className="section-card section-card--wide">
+            <p className="card-kicker">Perspectives</p>
+            <p className="section-copy">
+              Each perspective answers a different operational question. Role
+              Fit asks how strong the fit appears. Interview Prep asks what to
+              prepare. Resume Positioning asks how to frame the source material.
+              Application Pipeline asks what should happen next. Compensation
+              and Scope Risk asks whether the opportunity needs structural
+              clarification before more commitment.
+            </p>
           </article>
 
           <article className="section-card section-card--wide">

@@ -158,7 +158,8 @@ describe('ContextWorkbench', () => {
               {
                 id: 'strong_matches',
                 title: 'Strong Matches',
-                content: '- Staff Platform Engineer',
+                content:
+                  '- Staff Platform Engineer\n- TypeScript platform experience\n- AI agent workflow exposure',
                 evidence_links: [
                   {
                     source: {
@@ -170,8 +171,51 @@ describe('ContextWorkbench', () => {
                     confidence: null,
                     note: 'Role title (explicit)',
                   },
+                  {
+                    source: {
+                      artifact_id: 'art_1',
+                      chunk_id: 'chunk_2',
+                      label: 'technical skill',
+                      excerpt: 'TypeScript platform experience',
+                    },
+                    confidence: null,
+                    note: 'Technical skill (explicit)',
+                  },
+                  {
+                    source: {
+                      artifact_id: 'art_1',
+                      chunk_id: 'chunk_2',
+                      label: 'technical skill',
+                      excerpt: 'TypeScript platform experience',
+                    },
+                    confidence: null,
+                    note: 'Technical skill (explicit)',
+                  },
+                  {
+                    source: {
+                      artifact_id: 'art_1',
+                      chunk_id: 'chunk_3',
+                      label: 'risk',
+                      excerpt: 'Broad platform ownership may be underspecified',
+                    },
+                    confidence: null,
+                    note: 'Scope risk (inferred)',
+                  },
+                  {
+                    source: {
+                      artifact_id: 'art_1',
+                      chunk_id: 'chunk_4',
+                      label: 'agent work',
+                      excerpt: 'AI agent workflow exposure',
+                    },
+                    confidence: null,
+                    note: 'Agent experience (explicit)',
+                  },
                 ],
-                metadata: { evidence_kinds: ['explicit'] },
+                metadata: {
+                  evidence_kinds: ['explicit', 'inferred'],
+                  signal_types: ['role_title', 'technical_skill'],
+                },
               },
             ],
           },
@@ -269,6 +313,51 @@ describe('ContextWorkbench', () => {
       expect.stringContaining('Encountered two children with the same key'),
       expect.anything(),
     );
+  });
+
+  it('renders perspective sections as synthesis with confidence and evidence grouping', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      return contextResponse(url) ?? new Response('{}', { status: 404 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ContextWorkbench />);
+
+    fireEvent.click(await screen.findByRole('tab', { name: 'Perspectives' }));
+
+    expect(await screen.findByText('How strong is my fit?')).toBeTruthy();
+    expect(screen.getByText('Decision summary')).toBeTruthy();
+    expect(screen.getByText('Why it matters')).toBeTruthy();
+    expect(screen.getByText('High confidence')).toBeTruthy();
+    expect(screen.getByText(/explicit · Technical skill/)).toBeTruthy();
+    expect(screen.getByText(/repeated 2x/)).toBeTruthy();
+    expect(
+      screen.queryByText(/explicit · Agent experience/),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Show 1 more evidence source'));
+
+    expect(screen.getAllByText('AI agent workflow exposure')).toHaveLength(2);
+  });
+
+  it('groups actionable items by readiness and explains suitability', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      return contextResponse(url) ?? new Response('{}', { status: 404 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ContextWorkbench />);
+
+    fireEvent.click(
+      await screen.findByRole('tab', { name: 'Actionable Items' }),
+    );
+
+    expect(await screen.findAllByText('Needs review')).toHaveLength(2);
+    expect(screen.getByText('Why this exists')).toBeTruthy();
+    expect(screen.getByText('Suitability')).toBeTruthy();
+    expect(
+      screen.getByText('Human-owned until the readiness state changes.'),
+    ).toBeTruthy();
   });
 
   it('renders generic workbench copy before domain details are loaded', async () => {

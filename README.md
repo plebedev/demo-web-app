@@ -125,14 +125,41 @@ Current scope:
 - lists owner-scoped persisted artifacts from `/api/bff/context/domains/job_search/artifacts`
 - generates Role Fit, Interview Prep, Resume Positioning, Application Pipeline,
   and Compensation and Scope Risk perspectives
-- renders source evidence and lets users navigate from conclusions back to artifacts
+- renders each perspective as decision summary, rationale, supporting evidence,
+  and additional signals
+- groups repeated evidence, shows only top sources first, and lets users expand
+  for more provenance detail
 - lists owner-scoped actionable items from `/api/bff/context/domains/job_search/actionable-items`
-- distinguishes agent-suitable work from human clarification, decision, source-gap,
-  review, and blocked work
+- groups actionable items by readiness and explains rationale, evidence, and
+  human-vs-agent suitability
 - provides `/context-workbench/about` for user-facing architecture and limitation context
 
 It intentionally does not include a production dashboard, autonomous execution,
 OCR, image understanding, audio/video parsing, or web lookup.
+
+### Perspective rendering model
+
+The workbench treats perspective sections as decision-support surfaces, not
+debugging output. The visual hierarchy is:
+
+1. synthesized decision summary
+2. why it matters and what implication follows
+3. grouped supporting evidence with provenance access
+4. additional extracted or inferred signals
+
+Evidence is grouped by source, excerpt, and note to reduce repeated cards. The
+first three grouped sources are shown by default; users can expand the section
+when they need a fuller evidence trail. Confidence is intentionally coarse
+(`High confidence`, `Medium confidence`, `Low confidence`) and is based on the
+presence and kind of supporting evidence, not fake percentages.
+
+Actionable items are operational triage records. The UI keeps
+`ready_for_agent`, `needs_human_clarification`, `needs_source_material`,
+`needs_decision`, `needs_review`, and `blocked` visually distinct while still
+showing the source evidence behind each recommendation. No execution agent is
+invoked.
+
+More detail lives in [docs/context-workbench-ux.md](/Users/plebedev/github/demo/demo-web-app/docs/context-workbench-ux.md).
 
 ## M6 demo polish
 
