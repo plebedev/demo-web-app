@@ -126,7 +126,7 @@ Current scope:
 - generates Role Fit, Interview Prep, Resume Positioning, Application Pipeline,
   and Compensation and Scope Risk perspectives
 - renders source evidence and lets users navigate from conclusions back to artifacts
-- lists owner-scoped actionable items from `/api/bff/context/domains/job_search/tasks`
+- lists owner-scoped actionable items from `/api/bff/context/domains/job_search/actionable-items`
 - distinguishes agent-suitable work from human clarification, decision, source-gap,
   review, and blocked work
 - provides `/context-workbench/about` for user-facing architecture and limitation context

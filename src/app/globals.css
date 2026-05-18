@@ -995,6 +995,32 @@ a {
   background: rgba(255, 255, 255, 0.7);
 }
 
+.context-chunk-list {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.context-chunk {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(29, 79, 128, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.context-chunk span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.context-chunk p {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.55;
+}
+
 .context-section-heading-row {
   display: flex;
   align-items: flex-start;

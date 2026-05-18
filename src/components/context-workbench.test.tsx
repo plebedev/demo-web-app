@@ -86,10 +86,12 @@ describe('ContextWorkbench', () => {
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         );
       }
-      if (url.endsWith('/api/bff/context/domains/job_search/tasks')) {
+      if (
+        url.endsWith('/api/bff/context/domains/job_search/actionable-items')
+      ) {
         return new Response(
           JSON.stringify({
-            tasks: [
+            actionable_items: [
               {
                 id: 'task_1',
                 item_type: 'prepare_interview_brief',
@@ -104,6 +106,38 @@ describe('ContextWorkbench', () => {
                     excerpt: 'Title: Staff Platform Engineer',
                   },
                 ],
+              },
+            ],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      if (url.endsWith('/api/bff/context/domains/job_search/artifacts/art_1')) {
+        return new Response(
+          JSON.stringify({
+            artifact: {
+              id: 'art_1',
+              artifact_type_id: 'job_description',
+              title: 'Platform role',
+              text: 'Title: Staff Platform Engineer',
+              source_uri: 'memory://role',
+              metadata: { stage: 'screen' },
+              created_at: '2026-05-17T00:00:00Z',
+            },
+            chunks: [
+              {
+                id: 'chunk_1',
+                artifact_id: 'art_1',
+                chunk_index: 0,
+                text: 'Title: Staff Platform Engineer',
+                start_offset: 0,
+                end_offset: 30,
+                source_link: {
+                  artifact_id: 'art_1',
+                  chunk_id: 'chunk_1',
+                  label: 'job_description',
+                  excerpt: 'Title: Staff Platform Engineer',
+                },
               },
             ],
           }),
@@ -130,7 +164,7 @@ describe('ContextWorkbench', () => {
                         label: 'role title',
                         excerpt: 'Staff Platform Engineer',
                       },
-                      confidence: 0.95,
+                      confidence: null,
                       note: 'Role title (explicit)',
                     },
                   ],
@@ -166,6 +200,14 @@ describe('ContextWorkbench', () => {
       );
       expect(fetchMock).toHaveBeenCalledWith(
         '/api/bff/context/domains/job_search/artifacts',
+        expect.any(Object),
+      );
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/bff/context/domains/job_search/actionable-items',
+        expect.any(Object),
+      );
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/bff/context/domains/job_search/artifacts/art_1',
         expect.any(Object),
       );
     });

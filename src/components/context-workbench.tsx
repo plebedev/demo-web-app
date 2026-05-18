@@ -3,6 +3,7 @@
 import React, {
   ChangeEvent,
   FormEvent,
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -52,6 +53,21 @@ type Artifact = {
   source_uri: string | null;
   metadata: Record<string, unknown>;
   created_at: string;
+};
+
+type ArtifactChunk = {
+  id: string;
+  artifact_id: string;
+  chunk_index: number;
+  text: string;
+  start_offset: number;
+  end_offset: number;
+  source_link: SourceLink;
+};
+
+type ArtifactDetail = {
+  artifact: Artifact;
+  chunks: ArtifactChunk[];
 };
 
 type ViewSection = {
@@ -153,7 +169,11 @@ export function ContextWorkbench() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedViewId, setSelectedViewId] = useState('');
   const [view, setView] = useState<PerspectiveView | null>(null);
+  const [viewRefreshVersion, setViewRefreshVersion] = useState(0);
   const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(
+    null,
+  );
+  const [artifactDetail, setArtifactDetail] = useState<ArtifactDetail | null>(
     null,
   );
   const [activeTab, setActiveTab] = useState<WorkbenchTab>('overview');
@@ -186,35 +206,52 @@ export function ContextWorkbench() {
     }, {});
   }, [artifacts]);
 
-  async function refreshDomainData(token: string, domainId: string) {
-    const [domainResponse, artifactsResponse, tasksResponse] =
-      await Promise.all([
-        fetch(`/api/bff/context/domains/${domainId}`, {
-          headers: authHeaders(token),
-        }),
-        fetch(`/api/bff/context/domains/${domainId}/artifacts`, {
-          headers: authHeaders(token),
-        }),
-        fetch(`/api/bff/context/domains/${domainId}/tasks`, {
-          headers: authHeaders(token),
-        }),
-      ]);
-    if (!domainResponse.ok || !artifactsResponse.ok || !tasksResponse.ok) {
-      throw new Error('Unable to load selected Context Engine domain.');
-    }
-    const domainPayload = (await domainResponse.json()) as DomainDetail;
-    const artifactsPayload = (await artifactsResponse.json()) as {
-      artifacts: Artifact[];
-    };
-    const tasksPayload = (await tasksResponse.json()) as { tasks: Task[] };
-    setDomain(domainPayload);
-    setArtifacts(artifactsPayload.artifacts);
-    setTasks(tasksPayload.tasks);
-    setSelectedViewId((current) => current || domainPayload.views[0]?.id || '');
-    setSelectedArtifactId(
-      (current) => current ?? artifactsPayload.artifacts[0]?.id ?? null,
-    );
-  }
+  const refreshDomainData = useCallback(
+    async (token: string, domainId: string) => {
+      const [domainResponse, artifactsResponse, tasksResponse] =
+        await Promise.all([
+          fetch(`/api/bff/context/domains/${domainId}`, {
+            headers: authHeaders(token),
+          }),
+          fetch(`/api/bff/context/domains/${domainId}/artifacts`, {
+            headers: authHeaders(token),
+          }),
+          fetch(`/api/bff/context/domains/${domainId}/actionable-items`, {
+            headers: authHeaders(token),
+          }),
+        ]);
+      if (!domainResponse.ok || !artifactsResponse.ok || !tasksResponse.ok) {
+        const failed = [
+          !domainResponse.ok && `domain metadata (${domainResponse.status})`,
+          !artifactsResponse.ok && `artifacts (${artifactsResponse.status})`,
+          !tasksResponse.ok && `actionable items (${tasksResponse.status})`,
+        ].filter(Boolean);
+        throw new Error(`Unable to load ${failed.join(', ')}.`);
+      }
+      const domainPayload = (await domainResponse.json()) as DomainDetail;
+      const artifactsPayload = (await artifactsResponse.json()) as {
+        artifacts: Artifact[];
+      };
+      const tasksPayload = (await tasksResponse.json()) as {
+        actionable_items: Task[];
+      };
+      setDomain(domainPayload);
+      setArtifacts(artifactsPayload.artifacts);
+      setTasks(tasksPayload.actionable_items);
+      setSelectedViewId(
+        (current) => current || domainPayload.views[0]?.id || '',
+      );
+      setSelectedArtifactId(
+        (current) => current ?? artifactsPayload.artifacts[0]?.id ?? null,
+      );
+    },
+    [],
+  );
+
+  const openArtifact = useCallback((artifactId: string) => {
+    setSelectedArtifactId(artifactId);
+    setActiveTab('artifacts');
+  }, []);
 
   useEffect(() => {
     if (!accessToken) {
@@ -268,18 +305,22 @@ export function ContextWorkbench() {
           setStatus('Ready');
         }
       })
-      .catch(() => {
+      .catch((caught) => {
         if (active) {
           setDomain(null);
           setArtifacts([]);
           setTasks([]);
-          setStatus('Unable to load selected domain.');
+          setStatus(
+            caught instanceof Error
+              ? caught.message
+              : 'Unable to load selected domain.',
+          );
         }
       });
     return () => {
       active = false;
     };
-  }, [accessToken, selectedDomainId]);
+  }, [accessToken, refreshDomainData, selectedDomainId]);
 
   useEffect(() => {
     if (!accessToken || !selectedDomainId || !selectedViewId) {
@@ -312,13 +353,42 @@ export function ContextWorkbench() {
     return () => {
       active = false;
     };
-  }, [
-    accessToken,
-    selectedDomainId,
-    selectedViewId,
-    artifacts.length,
-    tasks.length,
-  ]);
+  }, [accessToken, selectedDomainId, selectedViewId, viewRefreshVersion]);
+
+  useEffect(() => {
+    if (!accessToken || !selectedDomainId || !selectedArtifactId) {
+      setArtifactDetail(null);
+      return;
+    }
+    let active = true;
+    fetch(
+      `/api/bff/context/domains/${selectedDomainId}/artifacts/${selectedArtifactId}`,
+      {
+        headers: authHeaders(accessToken),
+      },
+    )
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(
+            `Unable to load artifact detail (${response.status}).`,
+          );
+        }
+        return (await response.json()) as ArtifactDetail;
+      })
+      .then((payload) => {
+        if (active) {
+          setArtifactDetail(payload);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setArtifactDetail(null);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [accessToken, selectedArtifactId, selectedDomainId]);
 
   async function handleIngest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -378,6 +448,7 @@ export function ContextWorkbench() {
       setLastIngest(payload);
       await refreshDomainData(accessToken, selectedDomainId);
       setSelectedArtifactId(payload.artifact.id);
+      setViewRefreshVersion((current) => current + 1);
       setForm((current) => ({
         ...current,
         title: '',
@@ -669,6 +740,7 @@ export function ContextWorkbench() {
               )}
               {activeTab === 'artifacts' && (
                 <ArtifactsPanel
+                  artifactDetail={artifactDetail}
                   artifacts={artifacts}
                   domain={domain}
                   onSelect={setSelectedArtifactId}
@@ -679,8 +751,11 @@ export function ContextWorkbench() {
                 <PerspectivesPanel
                   artifacts={artifacts}
                   domain={domain}
+                  onOpenArtifact={openArtifact}
+                  onRegenerate={() =>
+                    setViewRefreshVersion((current) => current + 1)
+                  }
                   selectedViewId={selectedViewId}
-                  setSelectedArtifactId={setSelectedArtifactId}
                   setSelectedViewId={setSelectedViewId}
                   view={view}
                 />
@@ -689,7 +764,7 @@ export function ContextWorkbench() {
                 <ItemsPanel
                   artifacts={artifacts}
                   domain={domain}
-                  setSelectedArtifactId={setSelectedArtifactId}
+                  onOpenArtifact={openArtifact}
                   tasks={tasks}
                 />
               )}
@@ -763,16 +838,19 @@ function OverviewPanel({
 }
 
 function ArtifactsPanel({
+  artifactDetail,
   artifacts,
   domain,
   onSelect,
   selectedArtifact,
 }: Readonly<{
+  artifactDetail: ArtifactDetail | null;
   artifacts: Artifact[];
   domain: DomainDetail | null;
   onSelect: (artifactId: string) => void;
   selectedArtifact: Artifact | null;
 }>) {
+  const detailArtifact = artifactDetail?.artifact ?? selectedArtifact;
   return (
     <div className="context-two-column">
       <article className="section-card">
@@ -808,22 +886,36 @@ function ArtifactsPanel({
       </article>
       <article className="section-card context-artifact-detail">
         <p className="card-kicker">Artifact detail</p>
-        {selectedArtifact ? (
+        {detailArtifact ? (
           <>
             <h3>
-              {selectedArtifact.title ??
-                readableArtifactType(domain, selectedArtifact.artifact_type_id)}
+              {detailArtifact.title ??
+                readableArtifactType(domain, detailArtifact.artifact_type_id)}
             </h3>
             <p className="section-detail">
-              {readableArtifactType(domain, selectedArtifact.artifact_type_id)}{' '}
-              · {selectedArtifact.source_uri ?? 'no source URI'}
+              {readableArtifactType(domain, detailArtifact.artifact_type_id)} ·{' '}
+              {detailArtifact.source_uri ?? 'no source URI'}
             </p>
-            {metadataText(selectedArtifact.metadata) && (
+            {metadataText(detailArtifact.metadata) && (
               <pre className="context-metadata-block">
-                {metadataText(selectedArtifact.metadata)}
+                {metadataText(detailArtifact.metadata)}
               </pre>
             )}
-            <pre className="context-source-text">{selectedArtifact.text}</pre>
+            <pre className="context-source-text">{detailArtifact.text}</pre>
+            {artifactDetail?.chunks.length ? (
+              <div className="context-chunk-list">
+                <p className="card-kicker">Persisted chunks</p>
+                {artifactDetail.chunks.map((chunk) => (
+                  <article className="context-chunk" key={chunk.id}>
+                    <strong>Chunk {chunk.chunk_index + 1}</strong>
+                    <span>
+                      offsets {chunk.start_offset}-{chunk.end_offset}
+                    </span>
+                    <p>{chunk.text}</p>
+                  </article>
+                ))}
+              </div>
+            ) : null}
           </>
         ) : (
           <p className="section-detail">No artifact selected.</p>
@@ -836,15 +928,17 @@ function ArtifactsPanel({
 function PerspectivesPanel({
   artifacts,
   domain,
+  onOpenArtifact,
+  onRegenerate,
   selectedViewId,
-  setSelectedArtifactId,
   setSelectedViewId,
   view,
 }: Readonly<{
   artifacts: Artifact[];
   domain: DomainDetail | null;
+  onOpenArtifact: (artifactId: string) => void;
+  onRegenerate: () => void;
   selectedViewId: string;
-  setSelectedArtifactId: (artifactId: string) => void;
   setSelectedViewId: (viewId: string) => void;
   view: PerspectiveView | null;
 }>) {
@@ -863,6 +957,13 @@ function PerspectivesPanel({
             </option>
           ))}
         </select>
+        <button
+          className="secondary-button"
+          onClick={onRegenerate}
+          type="button"
+        >
+          Regenerate view
+        </button>
       </article>
       {(view?.sections ?? []).map((section) => (
         <article className="section-card context-view-section" key={section.id}>
@@ -886,7 +987,7 @@ function PerspectivesPanel({
             artifacts={artifacts}
             domain={domain}
             evidenceLinks={section.evidence_links}
-            onSelectArtifact={setSelectedArtifactId}
+            onSelectArtifact={onOpenArtifact}
           />
         </article>
       ))}
@@ -897,12 +998,12 @@ function PerspectivesPanel({
 function ItemsPanel({
   artifacts,
   domain,
-  setSelectedArtifactId,
+  onOpenArtifact,
   tasks,
 }: Readonly<{
   artifacts: Artifact[];
   domain: DomainDetail | null;
-  setSelectedArtifactId: (artifactId: string) => void;
+  onOpenArtifact: (artifactId: string) => void;
   tasks: Task[];
 }>) {
   return (
@@ -939,7 +1040,7 @@ function ItemsPanel({
                 confidence: null,
                 note: task.title,
               }))}
-              onSelectArtifact={setSelectedArtifactId}
+              onSelectArtifact={onOpenArtifact}
             />
           </article>
         ))
