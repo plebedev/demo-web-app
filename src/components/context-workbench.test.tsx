@@ -46,7 +46,8 @@ describe('ContextWorkbench', () => {
   });
 
   function contextResponse(url: string) {
-    if (url.endsWith('/api/bff/context/domains')) {
+    const path = url.split('?')[0];
+    if (path.endsWith('/api/bff/context/domains')) {
       return new Response(
         JSON.stringify({
           domains: [
@@ -59,7 +60,7 @@ describe('ContextWorkbench', () => {
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       );
     }
-    if (url.endsWith('/api/bff/context/domains/job_search')) {
+    if (path.endsWith('/api/bff/context/domains/job_search')) {
       return new Response(
         JSON.stringify({
           id: 'job_search',
@@ -73,7 +74,7 @@ describe('ContextWorkbench', () => {
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       );
     }
-    if (url.endsWith('/api/bff/context/domains/job_search/artifacts')) {
+    if (path.endsWith('/api/bff/context/domains/job_search/artifacts')) {
       return new Response(
         JSON.stringify({
           artifacts: [
@@ -91,7 +92,7 @@ describe('ContextWorkbench', () => {
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       );
     }
-    if (url.endsWith('/api/bff/context/domains/job_search/actionable-items')) {
+    if (path.endsWith('/api/bff/context/domains/job_search/actionable-items')) {
       return new Response(
         JSON.stringify({
           actionable_items: [
@@ -115,7 +116,7 @@ describe('ContextWorkbench', () => {
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       );
     }
-    if (url.endsWith('/api/bff/context/domains/job_search/artifacts/art_1')) {
+    if (path.endsWith('/api/bff/context/domains/job_search/artifacts/art_1')) {
       return new Response(
         JSON.stringify({
           artifact: {
@@ -147,13 +148,14 @@ describe('ContextWorkbench', () => {
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       );
     }
-    if (url.endsWith('/api/bff/context/domains/job_search/views/role_fit')) {
+    if (path.endsWith('/api/bff/context/domains/job_search/views/role_fit')) {
       return new Response(
         JSON.stringify({
           view: {
             id: 'view_1',
             view_definition_id: 'role_fit',
             title: 'Role Fit',
+            metadata: { generated_by: 'llm', model_profile: 'fast_structured' },
             sections: [
               {
                 id: 'strong_matches',
@@ -227,13 +229,15 @@ describe('ContextWorkbench', () => {
   }
 
   function contextResponseWithDuplicatePerspectiveLines(url: string) {
-    if (url.endsWith('/api/bff/context/domains/job_search/views/role_fit')) {
+    const path = url.split('?')[0];
+    if (path.endsWith('/api/bff/context/domains/job_search/views/role_fit')) {
       return new Response(
         JSON.stringify({
           view: {
             id: 'view_1',
             view_definition_id: 'role_fit',
             title: 'Role Fit',
+            metadata: { is_stale: true },
             sections: [
               {
                 id: 'strong_matches',
@@ -338,6 +342,36 @@ describe('ContextWorkbench', () => {
     fireEvent.click(screen.getByText('Show 1 more evidence source'));
 
     expect(screen.getAllByText('AI agent workflow exposure')).toHaveLength(2);
+  });
+
+  it('requests explicit perspective regeneration only from the button', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      return contextResponse(url) ?? new Response('{}', { status: 404 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ContextWorkbench />);
+
+    fireEvent.click(await screen.findByRole('tab', { name: 'Perspectives' }));
+    expect(
+      await screen.findAllByText('LLM synthesized · fast_structured'),
+    ).toBeTruthy();
+
+    expect(
+      fetchMock.mock.calls.some(([url]) =>
+        String(url).includes('/views/role_fit?regenerate=true'),
+      ),
+    ).toBe(false);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Regenerate view' }));
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([url]) =>
+          String(url).includes('/views/role_fit?regenerate=true'),
+        ),
+      ).toBe(true);
+    });
   });
 
   it('groups actionable items by readiness and explains suitability', async () => {

@@ -84,6 +84,7 @@ type PerspectiveView = {
   view_definition_id: string;
   title: string;
   sections: ViewSection[];
+  metadata: Record<string, unknown>;
 };
 
 type Task = {
@@ -93,6 +94,7 @@ type Task = {
   description: string | null;
   readiness_status: string;
   source_links: SourceLink[];
+  metadata?: Record<string, unknown>;
 };
 
 type IngestResponse = {
@@ -244,6 +246,10 @@ function groupedEvidence(evidenceLinks: EvidenceLink[]) {
 }
 
 function confidenceLabel(section: ViewSection) {
+  const configuredConfidence = section.metadata.confidence;
+  if (typeof configuredConfidence === 'string') {
+    return `${configuredConfidence} confidence`;
+  }
   const kinds = new Set(
     ((section.metadata.evidence_kinds as string[] | undefined) ?? []).map(
       evidenceKindLabel,
@@ -262,6 +268,9 @@ function confidenceLabel(section: ViewSection) {
 }
 
 function sectionRationale(section: ViewSection) {
+  if (typeof section.metadata.rationale === 'string') {
+    return section.metadata.rationale;
+  }
   const kinds = (
     (section.metadata.evidence_kinds as string[] | undefined) ?? []
   )
@@ -295,6 +304,14 @@ function sectionImplication(
   view: PerspectiveView | null,
   section: ViewSection,
 ) {
+  const implications = section.metadata.actionable_implications;
+  if (
+    Array.isArray(implications) &&
+    implications.length &&
+    typeof implications[0] === 'string'
+  ) {
+    return implications[0];
+  }
   const profile = view ? PERSPECTIVE_PROFILES[view.view_definition_id] : null;
   if (!profile) {
     return 'Review the evidence before turning this section into a decision or next action.';
@@ -323,6 +340,30 @@ function metadataText(metadata: Record<string, unknown>) {
   return entries.map(([key, value]) => `${key}: ${String(value)}`).join('\n');
 }
 
+function viewGenerationLabel(view: PerspectiveView | null) {
+  if (!view) {
+    return 'No perspective loaded';
+  }
+  const generatedBy = view.metadata?.generated_by;
+  const fallbackWarning = view.metadata?.fallback_warning;
+  const modelProfile = view.metadata?.model_profile;
+  if (view.metadata?.is_stale === true) {
+    return 'Regeneration recommended · artifacts changed';
+  }
+  if (typeof fallbackWarning === 'string') {
+    return `Deterministic fallback · ${fallbackWarning}`;
+  }
+  if (generatedBy === 'llm') {
+    return typeof modelProfile === 'string'
+      ? `LLM synthesized · ${modelProfile}`
+      : 'LLM synthesized';
+  }
+  if (generatedBy === 'deterministic') {
+    return 'Deterministic view';
+  }
+  return 'Perspective loaded';
+}
+
 export function ContextWorkbench() {
   const { accessToken: verifiedToken, isChecking } = useProtectedAccess(
     'context-workbench',
@@ -338,6 +379,8 @@ export function ContextWorkbench() {
   const [selectedViewId, setSelectedViewId] = useState('');
   const [view, setView] = useState<PerspectiveView | null>(null);
   const [viewRefreshVersion, setViewRefreshVersion] = useState(0);
+  const shouldRegenerateViewRef = useRef(false);
+  const [isViewLoading, setIsViewLoading] = useState(false);
   const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(
     null,
   );
@@ -494,15 +537,23 @@ export function ContextWorkbench() {
   useEffect(() => {
     if (!accessToken || !selectedDomainId || !selectedViewId) {
       setView(null);
+      setIsViewLoading(false);
       return;
     }
     let active = true;
-    fetch(
-      `/api/bff/context/domains/${selectedDomainId}/views/${selectedViewId}`,
-      {
-        headers: authHeaders(accessToken),
-      },
-    )
+    setIsViewLoading(true);
+    setError('');
+    const shouldRegenerate = shouldRegenerateViewRef.current;
+    shouldRegenerateViewRef.current = false;
+    setStatus(
+      shouldRegenerate ? 'Regenerating perspective' : 'Loading perspective',
+    );
+    const viewUrl = `/api/bff/context/domains/${selectedDomainId}/views/${selectedViewId}${
+      shouldRegenerate ? '?regenerate=true' : ''
+    }`;
+    fetch(viewUrl, {
+      headers: authHeaders(accessToken),
+    })
       .then(async (response) => {
         if (!response.ok) {
           throw new Error('Unable to build perspective.');
@@ -512,11 +563,23 @@ export function ContextWorkbench() {
       .then((payload) => {
         if (active) {
           setView(payload.view);
+          setStatus(viewGenerationLabel(payload.view));
         }
       })
-      .catch(() => {
+      .catch((caught) => {
         if (active) {
           setView(null);
+          setError(
+            caught instanceof Error
+              ? caught.message
+              : 'Unable to build perspective.',
+          );
+          setStatus('Perspective build failed');
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setIsViewLoading(false);
         }
       });
     return () => {
@@ -944,10 +1007,14 @@ export function ContextWorkbench() {
                 <PerspectivesPanel
                   artifacts={artifacts}
                   domain={domain}
+                  isLoading={isViewLoading}
                   onOpenArtifact={openArtifact}
-                  onRegenerate={() =>
-                    setViewRefreshVersion((current) => current + 1)
-                  }
+                  onRegenerate={() => {
+                    setError('');
+                    shouldRegenerateViewRef.current = true;
+                    setStatus('Regenerating perspective');
+                    setViewRefreshVersion((current) => current + 1);
+                  }}
                   selectedViewId={selectedViewId}
                   setSelectedViewId={setSelectedViewId}
                   view={view}
@@ -1121,6 +1188,7 @@ function ArtifactsPanel({
 function PerspectivesPanel({
   artifacts,
   domain,
+  isLoading,
   onOpenArtifact,
   onRegenerate,
   selectedViewId,
@@ -1129,6 +1197,7 @@ function PerspectivesPanel({
 }: Readonly<{
   artifacts: Artifact[];
   domain: DomainDetail | null;
+  isLoading: boolean;
   onOpenArtifact: (artifactId: string) => void;
   onRegenerate: () => void;
   selectedViewId: string;
@@ -1148,6 +1217,9 @@ function PerspectivesPanel({
             {profile?.question ??
               'Read this view as a synthesis first, then inspect evidence when needed.'}
           </p>
+          <p className="context-generation-status" aria-live="polite">
+            {isLoading ? 'Loading perspective...' : viewGenerationLabel(view)}
+          </p>
         </div>
         <div className="context-toolbar-controls">
           <select
@@ -1163,10 +1235,11 @@ function PerspectivesPanel({
           </select>
           <button
             className="secondary-button"
+            disabled={isLoading || !selectedViewId}
             onClick={onRegenerate}
             type="button"
           >
-            Regenerate view
+            {isLoading ? 'Regenerating...' : 'Regenerate view'}
           </button>
         </div>
       </article>
@@ -1229,6 +1302,29 @@ function PerspectiveSectionBody({
   );
 }
 
+function taskRationale(task: Task) {
+  if (typeof task.metadata?.rationale === 'string') {
+    return task.metadata.rationale;
+  }
+  return 'Generated from source-linked context that suggests this work may reduce uncertainty or move the opportunity forward.';
+}
+
+function taskSuitability(task: Task) {
+  const ownerType = task.metadata?.owner_type;
+  if (ownerType === 'agent') {
+    return 'Agent-suitable after human review of the linked evidence.';
+  }
+  if (ownerType === 'shared') {
+    return 'Shared work: a human should review the evidence before delegation.';
+  }
+  if (ownerType === 'human') {
+    return 'Human-owned because judgment, missing evidence, or personal preference is involved.';
+  }
+  return task.readiness_status === 'ready_for_agent'
+    ? 'Agent-suitable after human review of the linked evidence.'
+    : 'Human-owned until the readiness state changes.';
+}
+
 function ItemsPanel({
   artifacts,
   domain,
@@ -1281,19 +1377,11 @@ function ItemsPanel({
                 <div className="context-action-rationale">
                   <div>
                     <p className="context-label">Why this exists</p>
-                    <p>
-                      Generated from source-linked context that suggests this
-                      work may reduce uncertainty or move the opportunity
-                      forward.
-                    </p>
+                    <p>{taskRationale(task)}</p>
                   </div>
                   <div>
                     <p className="context-label">Suitability</p>
-                    <p>
-                      {task.readiness_status === 'ready_for_agent'
-                        ? 'Agent-suitable after human review of the linked evidence.'
-                        : 'Human-owned until the readiness state changes.'}
-                    </p>
+                    <p>{taskSuitability(task)}</p>
                   </div>
                 </div>
                 <EvidenceList
