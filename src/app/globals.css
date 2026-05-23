@@ -1806,6 +1806,25 @@ a {
   font-weight: 700;
 }
 
+.tool-checkbox-group {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0;
+  border: 0;
+}
+
+.tool-checkbox-group .checkbox-row {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.tool-checkbox-group small {
+  flex-basis: 100%;
+  padding-left: 1.55rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
 .checkbox-row input {
   width: 1rem;
   height: 1rem;
