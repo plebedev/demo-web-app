@@ -16,6 +16,7 @@ type VoicePersona = {
   instructions: string;
   capabilities: string | null;
   tool_config: string | null;
+  tool_names?: string[];
   is_active: boolean;
 };
 
@@ -23,6 +24,12 @@ type VoiceProvider = {
   provider_id: string;
   provider_name: string;
   voices: string[];
+};
+
+type VoiceTool = {
+  name: string;
+  description: string;
+  is_terminal: boolean;
 };
 
 type VoiceConfig = {
@@ -72,6 +79,7 @@ type PersonaFormState = {
   instructions: string;
   capabilities: string;
   tool_config: string;
+  tool_names: string[];
 };
 
 const emptyPersonaForm: PersonaFormState = {
@@ -79,6 +87,7 @@ const emptyPersonaForm: PersonaFormState = {
   instructions: '',
   capabilities: '',
   tool_config: '',
+  tool_names: [],
 };
 
 function authHeaders(token: string): HeadersInit {
@@ -107,6 +116,7 @@ export function VoiceDemoWorkspace() {
   const [personaForm, setPersonaForm] =
     useState<PersonaFormState>(emptyPersonaForm);
   const [providers, setProviders] = useState<VoiceProvider[]>([]);
+  const [voiceTools, setVoiceTools] = useState<VoiceTool[]>([]);
   const [voiceProvider, setVoiceProvider] = useState('');
   const [voiceName, setVoiceName] = useState('');
 
@@ -118,6 +128,7 @@ export function VoiceDemoWorkspace() {
   const [connectionState, setConnectionState] =
     useState<ConnectionState>('idle');
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
+  const [callPersonaId, setCallPersonaId] = useState<number | null>(null);
 
   // History state
   const [historyRecords, setHistoryRecords] = useState<ConversationSummary[]>(
@@ -176,6 +187,15 @@ export function VoiceDemoWorkspace() {
         }
         setPersonas(payload.personas);
         setSelectedPersonaId((current) => {
+          if (
+            current !== null &&
+            payload.personas.some((p) => p.id === current)
+          ) {
+            return current;
+          }
+          return payload.personas[0]?.id ?? null;
+        });
+        setCallPersonaId((current) => {
           if (
             current !== null &&
             payload.personas.some((p) => p.id === current)
@@ -246,9 +266,29 @@ export function VoiceDemoWorkspace() {
       }
     }
 
+    async function loadTools() {
+      try {
+        const response = await fetch('/api/bff/voice/tools', {
+          cache: 'no-store',
+          headers: authHeaders(token),
+        });
+        if (!response.ok) {
+          return;
+        }
+        const payload = (await response.json()) as { tools: VoiceTool[] };
+        if (!active) {
+          return;
+        }
+        setVoiceTools(payload.tools);
+      } catch {
+        // Non-fatal — persona form can still edit existing text fields
+      }
+    }
+
     void loadPersonas();
     void loadConfig();
     void loadProviders();
+    void loadTools();
 
     return () => {
       active = false;
@@ -324,6 +364,16 @@ export function VoiceDemoWorkspace() {
       instructions: persona.instructions,
       capabilities: persona.capabilities ?? '',
       tool_config: persona.tool_config ?? '',
+      tool_names: persona.tool_names ?? [],
+    });
+  }
+
+  function togglePersonaTool(toolName: string) {
+    setPersonaForm((current) => {
+      const selected = current.tool_names.includes(toolName)
+        ? current.tool_names.filter((name) => name !== toolName)
+        : [...current.tool_names, toolName];
+      return { ...current, tool_names: selected };
     });
   }
 
@@ -364,12 +414,14 @@ export function VoiceDemoWorkspace() {
               instructions: personaForm.instructions.trim(),
               capabilities: personaForm.capabilities.trim() || null,
               tool_config: personaForm.tool_config.trim() || null,
+              tool_names: personaForm.tool_names,
             }
           : {
               name: personaForm.name.trim(),
               instructions: personaForm.instructions.trim(),
               capabilities: personaForm.capabilities.trim() || null,
               tool_config: personaForm.tool_config.trim() || null,
+              tool_names: personaForm.tool_names,
             };
 
         const personaResponse = await fetch(url, {
@@ -393,6 +445,7 @@ export function VoiceDemoWorkspace() {
           instructions: saved.instructions,
           capabilities: saved.capabilities ?? '',
           tool_config: saved.tool_config ?? '',
+          tool_names: saved.tool_names ?? [],
         });
       }
 
@@ -455,7 +508,11 @@ export function VoiceDemoWorkspace() {
     const wsBase =
       process.env.NEXT_PUBLIC_BACKEND_WS_URL ??
       `${wsScheme}://${window.location.host}`;
-    const wsUrl = `${wsBase}/api/voice/stream?token=${encodeURIComponent(accessToken)}`;
+    const streamParams = new URLSearchParams({ token: accessToken });
+    if (callPersonaId !== null) {
+      streamParams.set('persona_id', String(callPersonaId));
+    }
+    const wsUrl = `${wsBase}/api/voice/stream?${streamParams.toString()}`;
 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
@@ -694,7 +751,10 @@ export function VoiceDemoWorkspace() {
 
   const isCallActive =
     connectionState === 'connected' || connectionState === 'connecting';
-  const activePersona = personas[0] ?? null;
+  const activePersona =
+    personas.find((persona) => persona.id === callPersonaId) ??
+    personas[0] ??
+    null;
 
   // ---------------------------------------------------------------------------
   // Render
@@ -787,7 +847,24 @@ export function VoiceDemoWorkspace() {
                 </p>
               ) : (
                 <>
-                  <strong>{activePersona?.name}</strong>
+                  <label className="field-label" htmlFor="voice-call-persona">
+                    Advisor
+                  </label>
+                  <select
+                    id="voice-call-persona"
+                    className="text-input"
+                    disabled={isCallActive}
+                    onChange={(event) =>
+                      setCallPersonaId(Number(event.target.value))
+                    }
+                    value={activePersona?.id ?? ''}
+                  >
+                    {personas.map((persona) => (
+                      <option key={persona.id} value={persona.id}>
+                        {persona.name}
+                      </option>
+                    ))}
+                  </select>
                   {activePersona?.capabilities ? (
                     <p className="section-detail">
                       {activePersona.capabilities}
@@ -1074,6 +1151,23 @@ export function VoiceDemoWorkspace() {
                     rows={4}
                     value={personaForm.tool_config}
                   />
+
+                  {voiceTools.length > 0 ? (
+                    <fieldset className="tool-checkbox-group">
+                      <legend className="field-label">Enabled tools</legend>
+                      {voiceTools.map((tool) => (
+                        <label className="checkbox-row" key={tool.name}>
+                          <input
+                            checked={personaForm.tool_names.includes(tool.name)}
+                            onChange={() => togglePersonaTool(tool.name)}
+                            type="checkbox"
+                          />
+                          <span>{tool.name}</span>
+                          <small>{tool.description}</small>
+                        </label>
+                      ))}
+                    </fieldset>
+                  ) : null}
 
                   <div className="workspace-toolbar">
                     <button
@@ -1452,6 +1546,24 @@ export function VoiceDemoWorkspace() {
                 <li>
                   Session metadata includes provider, voice, duration, and
                   estimated cost.
+                </li>
+              </ul>
+            </article>
+
+            <article className="section-card">
+              <p className="card-kicker">Meeting Prep limitations</p>
+              <ul className="section-list">
+                <li>
+                  Meeting Prep does not browse the web or verify current company
+                  facts.
+                </li>
+                <li>
+                  It uses the company, purpose, and details supplied in the
+                  conversation plus general model knowledge.
+                </li>
+                <li>
+                  Treat outputs as preparation hypotheses, not live research or
+                  sourced account intelligence.
                 </li>
               </ul>
             </article>

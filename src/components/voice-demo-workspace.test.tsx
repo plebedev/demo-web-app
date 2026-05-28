@@ -44,6 +44,25 @@ const providersResponse = JSON.stringify({
     },
   ],
 });
+const toolsResponse = JSON.stringify({
+  tools: [
+    {
+      name: 'record_answer',
+      description: 'Record a spoken answer.',
+      is_terminal: false,
+    },
+    {
+      name: 'prepare_meeting_context',
+      description: 'Prepare meeting context without live web lookup.',
+      is_terminal: false,
+    },
+    {
+      name: 'end_conversation',
+      description: 'End the conversation.',
+      is_terminal: true,
+    },
+  ],
+});
 
 function makePersona(id: number, name: string) {
   return {
@@ -52,6 +71,7 @@ function makePersona(id: number, name: string) {
     instructions: `Instructions for ${name}`,
     capabilities: `Capabilities for ${name}`,
     tool_config: null,
+    tool_names: ['record_answer', 'end_conversation'],
     is_active: true,
   };
 }
@@ -87,6 +107,12 @@ function makeBaseFetch(
     }
     if (url.endsWith('/api/bff/voice/providers')) {
       return new Response(providersResponse, {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    if (url.endsWith('/api/bff/voice/tools')) {
+      return new Response(toolsResponse, {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -160,6 +186,11 @@ describe('VoiceDemoWorkspace', () => {
     expect(screen.getByText('Voice experience')).toBeTruthy();
     expect(screen.getByLabelText('Provider')).toBeTruthy();
     expect(screen.getByLabelText('Voice')).toBeTruthy();
+    expect(
+      await screen.findByRole('checkbox', {
+        name: /prepare_meeting_context/,
+      }),
+    ).toBeTruthy();
   });
 
   it('saving voice config calls PUT /api/bff/voice/config with provider and voice', async () => {
@@ -210,11 +241,13 @@ describe('VoiceDemoWorkspace', () => {
     });
   });
 
-  it('creating a persona calls POST /api/bff/voice/personas', async () => {
+  it('creating a persona sends selected tool names', async () => {
     const newPersona = makePersona(42, 'New Advisor');
+    const requestBodies: Record<string, unknown>[] = [];
 
     const fetchMock = makeBaseFetch((url, init) => {
       if (url.endsWith('/api/bff/voice/personas') && init?.method === 'POST') {
+        requestBodies.push(JSON.parse(String(init.body)));
         return new Response(JSON.stringify(newPersona), {
           status: 201,
           headers: { 'Content-Type': 'application/json' },
@@ -236,6 +269,11 @@ describe('VoiceDemoWorkspace', () => {
     fireEvent.change(screen.getByLabelText('Instructions'), {
       target: { value: 'You are a helpful advisor.' },
     });
+    fireEvent.click(
+      await screen.findByRole('checkbox', {
+        name: /prepare_meeting_context/,
+      }),
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
@@ -244,6 +282,7 @@ describe('VoiceDemoWorkspace', () => {
         expect.objectContaining({ method: 'POST' }),
       );
     });
+    expect(requestBodies[0]?.tool_names).toEqual(['prepare_meeting_context']);
     expect(await screen.findByText('New Advisor')).toBeTruthy();
   });
 
@@ -275,6 +314,66 @@ describe('VoiceDemoWorkspace', () => {
         'Instructions',
       ) as HTMLTextAreaElement;
       expect(instructionsField.value).toBe('Instructions for Policy Advisor');
+    });
+  });
+
+  it('starting a session includes the selected persona id in the stream URL', async () => {
+    const firstPersona = makePersona(5, 'Policy Advisor');
+    const secondPersona = makePersona(9, 'Meeting Prep Advisor');
+    let streamUrl = '';
+
+    class FakeWebSocket {
+      static OPEN = 1;
+      readyState = 1;
+      onclose: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      onopen: (() => void) | null = null;
+
+      constructor(url: string) {
+        streamUrl = url;
+      }
+
+      close() {
+        this.onclose?.();
+      }
+
+      send() {}
+    }
+
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: vi.fn().mockRejectedValue(new Error('No mic in test')),
+      },
+    });
+    vi.stubGlobal(
+      'fetch',
+      makeBaseFetch((url) => {
+        if (url.endsWith('/api/bff/voice/personas')) {
+          return new Response(
+            JSON.stringify({ personas: [firstPersona, secondPersona] }),
+            {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
+        }
+        return null;
+      }),
+    );
+
+    render(<VoiceDemoWorkspace />);
+
+    const selector = (await screen.findByLabelText(
+      'Advisor',
+    )) as HTMLSelectElement;
+    fireEvent.change(selector, { target: { value: '9' } });
+    fireEvent.click(await screen.findByText('Start conversation'));
+
+    await waitFor(() => {
+      expect(streamUrl).toContain('persona_id=9');
     });
   });
 
