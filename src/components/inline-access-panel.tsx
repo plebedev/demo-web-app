@@ -3,13 +3,9 @@
 import React, { FormEvent, useState } from 'react';
 
 import { persistAccessToken } from '@/lib/access-token';
+import { redeemInvitationCode, submitInviteRequest } from '@/lib/api/access';
+import { getErrorMessage } from '@/lib/api/http';
 import { ExperienceId, fallbackExperiences } from '@/lib/experiences';
-
-type RedeemPayload = {
-  access_token: string;
-  experience_id: ExperienceId;
-  expires_at: string;
-};
 
 type RequestForm = { name: string; email: string; reason: string };
 
@@ -39,17 +35,7 @@ export function InlineAccessPanel({
     setIsRedeeming(true);
     setRedeemError(null);
     try {
-      const response = await fetch('/api/bff/access/redeem', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code }),
-      });
-      const payload = (await response.json()) as RedeemPayload & {
-        detail?: string;
-      };
-      if (!response.ok) {
-        throw new Error(payload.detail || 'Invitation code validation failed.');
-      }
+      const payload = await redeemInvitationCode({ code });
       persistAccessToken({
         accessToken: payload.access_token,
         experienceId: payload.experience_id,
@@ -58,9 +44,7 @@ export function InlineAccessPanel({
       onAccessGranted(payload.access_token);
     } catch (err) {
       setRedeemError(
-        err instanceof Error
-          ? err.message
-          : 'Invitation code validation failed.',
+        getErrorMessage(err, 'Invitation code validation failed.'),
       );
     } finally {
       setIsRedeeming(false);
@@ -72,22 +56,10 @@ export function InlineAccessPanel({
     setIsRequesting(true);
     setRequestError(null);
     try {
-      const response = await fetch('/api/bff/access/invite-requests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...requestForm, experience_id: experienceId }),
+      const payload = await submitInviteRequest({
+        ...requestForm,
+        experience_id: experienceId,
       });
-      const payload = (await response.json().catch(() => null)) as {
-        detail?: string;
-        message?: string;
-      } | null;
-      if (!response.ok) {
-        throw new Error(
-          typeof payload?.detail === 'string'
-            ? payload.detail
-            : 'Unable to submit request.',
-        );
-      }
       setRequestForm(emptyRequestForm);
       setRequestNotice(
         payload?.message ||
@@ -95,9 +67,7 @@ export function InlineAccessPanel({
       );
       setRequestOpen(false);
     } catch (err) {
-      setRequestError(
-        err instanceof Error ? err.message : 'Unable to submit request.',
-      );
+      setRequestError(getErrorMessage(err, 'Unable to submit request.'));
     } finally {
       setIsRequesting(false);
     }

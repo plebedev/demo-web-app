@@ -11,24 +11,17 @@ import {
   readStoredAccessTokens,
 } from '@/lib/access-token';
 import {
+  listExperiences,
+  redeemInvitationCode,
+  verifyAccessToken,
+} from '@/lib/api/access';
+import { getErrorMessage, isAbortError, isApiError } from '@/lib/api/http';
+import {
   Experience,
   ExperienceId,
-  ExperienceListResponse,
   fallbackExperiences,
 } from '@/lib/experiences';
 import { phase1DemoConfig } from '@/lib/phase1-demo';
-
-type AccessVerificationPayload = {
-  experience_id: ExperienceId;
-  expires_at: string;
-};
-
-type AccessRedeemPayload = {
-  access_token: string;
-  experience_id: ExperienceId;
-  redirect_path: string;
-  expires_at: string;
-};
 
 type AccessState = 'checking' | 'ready';
 
@@ -80,22 +73,17 @@ export function DemoExperience() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    let active = true;
+    const controller = new AbortController();
+    const { signal } = controller;
 
     async function loadExperiences() {
       try {
-        const response = await fetch('/api/bff/experiences', {
-          cache: 'no-store',
-        });
-        if (!response.ok) {
-          throw new Error('Unable to load experiences.');
-        }
-        const payload = (await response.json()) as ExperienceListResponse;
-        if (active && payload.experiences.length > 0) {
+        const payload = await listExperiences({ signal });
+        if (!signal.aborted && payload.experiences.length > 0) {
           setExperiences(payload.experiences);
         }
       } catch {
-        if (active) {
+        if (!signal.aborted) {
           setExperiences(fallbackExperiences);
         }
       }
@@ -107,18 +95,9 @@ export function DemoExperience() {
         Object.entries(storedTokens).map(
           async ([experienceId, storedToken]) => {
             try {
-              const response = await fetch('/api/bff/access/verify', {
-                cache: 'no-store',
-                headers: { Authorization: `Bearer ${storedToken.accessToken}` },
+              const payload = await verifyAccessToken(storedToken.accessToken, {
+                signal,
               });
-              if (!response.ok) {
-                if (isHardAccessVerificationFailure(response.status)) {
-                  clearStoredAccessToken(experienceId as ExperienceId);
-                }
-                return;
-              }
-              const payload =
-                (await response.json()) as AccessVerificationPayload;
               if (payload.experience_id !== experienceId) {
                 clearStoredAccessToken(experienceId as ExperienceId);
                 return;
@@ -128,13 +107,22 @@ export function DemoExperience() {
                 experienceId: payload.experience_id,
                 expiresAt: payload.expires_at,
               });
-            } catch {
-              // transient failure — keep the stored token as-is
+            } catch (verifyError) {
+              if (isAbortError(verifyError)) {
+                return;
+              }
+              if (
+                isApiError(verifyError) &&
+                isHardAccessVerificationFailure(verifyError.status)
+              ) {
+                clearStoredAccessToken(experienceId as ExperienceId);
+              }
+              // otherwise a transient failure — keep the stored token as-is
             }
           },
         ),
       );
-      if (!active) {
+      if (signal.aborted) {
         return;
       }
       setAccessState('ready');
@@ -144,7 +132,7 @@ export function DemoExperience() {
     void verifyStoredTokens();
 
     return () => {
-      active = false;
+      controller.abort();
     };
   }, []);
 
@@ -163,21 +151,7 @@ export function DemoExperience() {
     setError(null);
 
     try {
-      const response = await fetch('/api/bff/access/redeem', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ code }),
-      });
-
-      const payload = (await response.json()) as AccessRedeemPayload & {
-        detail?: string;
-      };
-
-      if (!response.ok) {
-        throw new Error(payload.detail || 'Invitation code validation failed.');
-      }
+      const payload = await redeemInvitationCode({ code });
 
       persistAccessToken({
         accessToken: payload.access_token,
@@ -188,9 +162,7 @@ export function DemoExperience() {
       router.replace(payload.redirect_path);
     } catch (submitError) {
       setError(
-        submitError instanceof Error
-          ? submitError.message
-          : 'Invitation code validation failed.',
+        getErrorMessage(submitError, 'Invitation code validation failed.'),
       );
     } finally {
       setSubmitting(false);

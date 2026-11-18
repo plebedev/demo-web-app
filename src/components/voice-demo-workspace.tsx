@@ -7,39 +7,27 @@ import { useRouter } from 'next/navigation';
 import { clearStoredAccessToken } from '@/lib/access-token';
 import { InlineAccessPanel } from '@/components/inline-access-panel';
 import { useProtectedAccess } from '@/hooks/use-protected-access';
+import { getErrorMessage, isAbortError } from '@/lib/api/http';
+import {
+  ConversationDetail,
+  ConversationSummary,
+  VoiceConfig,
+  VoicePersona,
+  VoiceProvider,
+  VoiceTool,
+  createVoicePersona,
+  deactivateVoicePersona,
+  getVoiceConfig,
+  getVoiceConversation,
+  listVoiceHistory,
+  listVoicePersonas,
+  listVoiceProviders,
+  listVoiceTools,
+  saveVoiceConfig,
+  updateVoicePersona,
+} from '@/lib/api/voice';
 
 type VoiceTab = 'test' | 'configuration' | 'history' | 'about';
-
-type VoicePersona = {
-  id: number;
-  name: string;
-  instructions: string;
-  capabilities: string | null;
-  tool_config: string | null;
-  tool_names?: string[];
-  is_active: boolean;
-};
-
-type VoiceProvider = {
-  provider_id: string;
-  provider_name: string;
-  voices: string[];
-};
-
-type VoiceTool = {
-  name: string;
-  description: string;
-  is_terminal: boolean;
-};
-
-type VoiceConfig = {
-  id: number;
-  experience_id: string;
-  voice_name: string;
-  voice_provider: string | null;
-  synthesized_greeting: string | null;
-  greeting_synced_at: string | null;
-};
 
 type ConnectionState = 'idle' | 'connecting' | 'connected' | 'error';
 
@@ -51,28 +39,6 @@ type TranscriptEntry =
       tool_name: string;
       args: Record<string, unknown>;
     };
-
-type ConversationSummary = {
-  id: number;
-  call_sid: string;
-  provider: string;
-  voice: string;
-  started_at: string;
-  ended_at: string | null;
-  duration_seconds: number | null;
-  input_audio_seconds: number | null;
-  output_audio_seconds: number | null;
-  estimated_cost_usd: number | null;
-  entry_count: number;
-};
-
-type HistoryTranscriptEntry =
-  | { role: 'advisor' | 'user'; text: string }
-  | { role: 'tool_call'; tool_name: string; args: Record<string, unknown> };
-
-type ConversationDetail = ConversationSummary & {
-  transcript: HistoryTranscriptEntry[];
-};
 
 type PersonaFormState = {
   name: string;
@@ -89,13 +55,6 @@ const emptyPersonaForm: PersonaFormState = {
   tool_config: '',
   tool_names: [],
 };
-
-function authHeaders(token: string): HeadersInit {
-  return {
-    Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/json',
-  };
-}
 
 export function VoiceDemoWorkspace() {
   const router = useRouter();
@@ -152,6 +111,7 @@ export function VoiceDemoWorkspace() {
   const activeSourcesRef = useRef<AudioBufferSourceNode[]>([]);
   const entryIdRef = useRef(0);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
+  const expandRequestRef = useRef<AbortController | null>(null);
 
   const selectedPersona = useMemo(
     () => personas.find((p) => p.id === selectedPersonaId) || null,
@@ -168,21 +128,15 @@ export function VoiceDemoWorkspace() {
     if (!accessToken) {
       return;
     }
-    let active = true;
+    const controller = new AbortController();
+    const { signal } = controller;
     const token = accessToken;
 
     async function loadPersonas() {
       setIsLoadingPersonas(true);
       try {
-        const response = await fetch('/api/bff/voice/personas', {
-          cache: 'no-store',
-          headers: authHeaders(token),
-        });
-        if (!response.ok) {
-          throw new Error('Unable to load personas.');
-        }
-        const payload = (await response.json()) as { personas: VoicePersona[] };
-        if (!active) {
+        const payload = await listVoicePersonas(token, { signal });
+        if (signal.aborted) {
           return;
         }
         setPersonas(payload.personas);
@@ -206,16 +160,16 @@ export function VoiceDemoWorkspace() {
         });
         setError(null);
       } catch (loadError) {
-        if (!active) {
+        if (signal.aborted || isAbortError(loadError)) {
           return;
         }
         setError(
-          loadError instanceof Error
-            ? loadError.message
-            : 'Unable to load personas.',
+          getErrorMessage(loadError, 'Unable to load personas.', {
+            preferDetail: false,
+          }),
         );
       } finally {
-        if (active) {
+        if (!signal.aborted) {
           setIsLoadingPersonas(false);
         }
       }
@@ -223,18 +177,8 @@ export function VoiceDemoWorkspace() {
 
     async function loadConfig() {
       try {
-        const response = await fetch('/api/bff/voice/config', {
-          cache: 'no-store',
-          headers: authHeaders(token),
-        });
-        if (response.status === 404) {
-          return;
-        }
-        if (!response.ok) {
-          throw new Error('Unable to load voice config.');
-        }
-        const payload = (await response.json()) as VoiceConfig;
-        if (!active) {
+        const payload = await getVoiceConfig(token, { signal });
+        if (!payload || signal.aborted) {
           return;
         }
         setConfig(payload);
@@ -247,17 +191,8 @@ export function VoiceDemoWorkspace() {
 
     async function loadProviders() {
       try {
-        const response = await fetch('/api/bff/voice/providers', {
-          cache: 'no-store',
-          headers: authHeaders(token),
-        });
-        if (!response.ok) {
-          return;
-        }
-        const payload = (await response.json()) as {
-          providers: VoiceProvider[];
-        };
-        if (!active) {
+        const payload = await listVoiceProviders(token, { signal });
+        if (signal.aborted) {
           return;
         }
         setProviders(payload.providers);
@@ -268,15 +203,8 @@ export function VoiceDemoWorkspace() {
 
     async function loadTools() {
       try {
-        const response = await fetch('/api/bff/voice/tools', {
-          cache: 'no-store',
-          headers: authHeaders(token),
-        });
-        if (!response.ok) {
-          return;
-        }
-        const payload = (await response.json()) as { tools: VoiceTool[] };
-        if (!active) {
+        const payload = await listVoiceTools(token, { signal });
+        if (signal.aborted) {
           return;
         }
         setVoiceTools(payload.tools);
@@ -291,7 +219,7 @@ export function VoiceDemoWorkspace() {
     void loadTools();
 
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [accessToken]);
 
@@ -300,29 +228,21 @@ export function VoiceDemoWorkspace() {
     if (activeTab !== 'history' || !accessToken) {
       return;
     }
-    let active = true;
+    const controller = new AbortController();
+    const { signal } = controller;
     const token = accessToken;
     setIsLoadingHistory(true);
 
     async function loadHistory() {
       try {
-        const response = await fetch('/api/bff/voice/history', {
-          cache: 'no-store',
-          headers: authHeaders(token),
-        });
-        if (!response.ok) {
-          return;
-        }
-        const payload = (await response.json()) as {
-          conversations: ConversationSummary[];
-        };
-        if (active) {
+        const payload = await listVoiceHistory(token, { signal });
+        if (!signal.aborted) {
           setHistoryRecords(payload.conversations);
         }
       } catch {
         // Non-fatal
       } finally {
-        if (active) {
+        if (!signal.aborted) {
           setIsLoadingHistory(false);
         }
       }
@@ -330,7 +250,7 @@ export function VoiceDemoWorkspace() {
 
     void loadHistory();
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [activeTab, accessToken]);
 
@@ -338,6 +258,7 @@ export function VoiceDemoWorkspace() {
   useEffect(() => {
     return () => {
       stopSession();
+      expandRequestRef.current?.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -386,18 +307,23 @@ export function VoiceDemoWorkspace() {
     setError(null);
     try {
       if (voiceName.trim()) {
-        const configResponse = await fetch('/api/bff/voice/config', {
-          method: 'PUT',
-          headers: authHeaders(accessToken),
-          body: JSON.stringify({
+        let configPayload: VoiceConfig;
+        try {
+          configPayload = await saveVoiceConfig(accessToken, {
             voice_name: voiceName.trim(),
             voice_provider: voiceProvider.trim() || null,
-          }),
-        });
-        if (!configResponse.ok) {
-          throw new Error('Unable to save voice configuration.');
+          });
+        } catch (configError) {
+          throw new Error(
+            getErrorMessage(
+              configError,
+              'Unable to save voice configuration.',
+              {
+                preferDetail: false,
+              },
+            ),
+          );
         }
-        const configPayload = (await configResponse.json()) as VoiceConfig;
         setConfig(configPayload);
         setVoiceName(configPayload.voice_name);
         setVoiceProvider(configPayload.voice_provider ?? '');
@@ -405,35 +331,26 @@ export function VoiceDemoWorkspace() {
 
       if (personaForm.instructions.trim()) {
         const isEdit = selectedPersonaId !== null;
-        const url = isEdit
-          ? `/api/bff/voice/personas/${selectedPersonaId}`
-          : '/api/bff/voice/personas';
-        const method = isEdit ? 'PATCH' : 'POST';
-        const body = isEdit
-          ? {
-              instructions: personaForm.instructions.trim(),
-              capabilities: personaForm.capabilities.trim() || null,
-              tool_config: personaForm.tool_config.trim() || null,
-              tool_names: personaForm.tool_names,
-            }
-          : {
-              name: personaForm.name.trim(),
-              instructions: personaForm.instructions.trim(),
-              capabilities: personaForm.capabilities.trim() || null,
-              tool_config: personaForm.tool_config.trim() || null,
-              tool_names: personaForm.tool_names,
-            };
+        const fields = {
+          instructions: personaForm.instructions.trim(),
+          capabilities: personaForm.capabilities.trim() || null,
+          tool_config: personaForm.tool_config.trim() || null,
+          tool_names: personaForm.tool_names,
+        };
 
-        const personaResponse = await fetch(url, {
-          method,
-          headers: authHeaders(accessToken),
-          body: JSON.stringify(body),
-        });
-        if (!personaResponse.ok) {
-          const detail = (await personaResponse.json()) as { detail?: string };
-          throw new Error(detail.detail ?? 'Unable to save persona.');
+        let saved: VoicePersona;
+        try {
+          saved = isEdit
+            ? await updateVoicePersona(accessToken, selectedPersonaId, fields)
+            : await createVoicePersona(accessToken, {
+                name: personaForm.name.trim(),
+                ...fields,
+              });
+        } catch (personaError) {
+          throw new Error(
+            getErrorMessage(personaError, 'Unable to save persona.'),
+          );
         }
-        const saved = (await personaResponse.json()) as VoicePersona;
         setPersonas((current) =>
           isEdit
             ? current.map((p) => (p.id === saved.id ? saved : p))
@@ -468,13 +385,7 @@ export function VoiceDemoWorkspace() {
     setIsSaving(true);
     setError(null);
     try {
-      const response = await fetch(
-        `/api/bff/voice/personas/${selectedPersonaId}/deactivate`,
-        { method: 'POST', headers: authHeaders(accessToken) },
-      );
-      if (!response.ok) {
-        throw new Error('Unable to deactivate persona.');
-      }
+      await deactivateVoicePersona(accessToken, selectedPersonaId);
       setPersonas((current) =>
         current.filter((p) => p.id !== selectedPersonaId),
       );
@@ -483,9 +394,9 @@ export function VoiceDemoWorkspace() {
       setNotice('Persona removed.');
     } catch (deactivateError) {
       setError(
-        deactivateError instanceof Error
-          ? deactivateError.message
-          : 'Unable to deactivate persona.',
+        getErrorMessage(deactivateError, 'Unable to deactivate persona.', {
+          preferDetail: false,
+        }),
       );
     } finally {
       setIsSaving(false);
@@ -727,6 +638,7 @@ export function VoiceDemoWorkspace() {
 
   async function handleExpandConversation(id: number) {
     if (expandedId === id) {
+      expandRequestRef.current?.abort();
       setExpandedId(null);
       setExpandedDetail(null);
       return;
@@ -736,16 +648,23 @@ export function VoiceDemoWorkspace() {
     if (!accessToken) {
       return;
     }
+    // Only the most recently expanded conversation may update the panel.
+    expandRequestRef.current?.abort();
+    const controller = new AbortController();
+    expandRequestRef.current = controller;
     try {
-      const response = await fetch(`/api/bff/voice/history/${id}`, {
-        headers: authHeaders(accessToken),
+      const detail = await getVoiceConversation(accessToken, id, {
+        signal: controller.signal,
       });
-      if (response.ok) {
-        const detail = (await response.json()) as ConversationDetail;
+      if (!controller.signal.aborted) {
         setExpandedDetail(detail);
       }
     } catch {
       // Non-fatal
+    } finally {
+      if (expandRequestRef.current === controller) {
+        expandRequestRef.current = null;
+      }
     }
   }
 

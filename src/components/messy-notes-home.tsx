@@ -8,15 +8,10 @@ import { useEffect, useState } from 'react';
 import { InlineAccessPanel } from '@/components/inline-access-panel';
 import { ProtectedDemoShell } from '@/components/protected-demo-shell';
 import { useProtectedAccess } from '@/hooks/use-protected-access';
-import { DemoRun, DemoRunListResponse, formatRunStatus } from '@/lib/demo-runs';
+import { getErrorMessage, isAbortError } from '@/lib/api/http';
+import { createRun, listRuns } from '@/lib/api/runs';
+import { DemoRun, formatRunStatus } from '@/lib/demo-runs';
 import { formatByteLimit, phase1DemoConfig } from '@/lib/phase1-demo';
-
-function authHeaders(accessToken: string): HeadersInit {
-  return {
-    Authorization: `Bearer ${accessToken}`,
-    'Content-Type': 'application/json',
-  };
-}
 
 export function MessyNotesHome() {
   const router = useRouter();
@@ -37,38 +32,30 @@ export function MessyNotesHome() {
     }
     const token = accessToken;
 
-    let active = true;
+    const controller = new AbortController();
+    const { signal } = controller;
 
     async function loadRuns() {
       try {
-        const response = await fetch('/api/bff/runs', {
-          cache: 'no-store',
-          headers: authHeaders(token),
-        });
-
-        if (!response.ok) {
-          throw new Error('Unable to load saved runs.');
-        }
-
-        const payload = (await response.json()) as DemoRunListResponse;
-        if (!active) {
+        const payload = await listRuns(token, { signal });
+        if (signal.aborted) {
           return;
         }
 
         setRuns(payload.runs);
         setError(null);
       } catch (loadError) {
-        if (!active) {
+        if (signal.aborted || isAbortError(loadError)) {
           return;
         }
 
         setError(
-          loadError instanceof Error
-            ? loadError.message
-            : 'Unable to load saved runs.',
+          getErrorMessage(loadError, 'Unable to load saved runs.', {
+            preferDetail: false,
+          }),
         );
       } finally {
-        if (active) {
+        if (!signal.aborted) {
           setIsLoading(false);
         }
       }
@@ -77,7 +64,7 @@ export function MessyNotesHome() {
     void loadRuns();
 
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [accessToken]);
 
@@ -90,23 +77,13 @@ export function MessyNotesHome() {
     setIsCreating(true);
 
     try {
-      const response = await fetch('/api/bff/runs', {
-        method: 'POST',
-        headers: authHeaders(token),
-        body: JSON.stringify({}),
-      });
-
-      if (!response.ok) {
-        throw new Error('Unable to create a new run.');
-      }
-
-      const createdRun = (await response.json()) as DemoRun;
+      const createdRun = await createRun(token);
       router.push(`/messy-notes/${createdRun.id}`);
     } catch (createError) {
       setError(
-        createError instanceof Error
-          ? createError.message
-          : 'Unable to create a new run.',
+        getErrorMessage(createError, 'Unable to create a new run.', {
+          preferDetail: false,
+        }),
       );
     } finally {
       setIsCreating(false);

@@ -262,6 +262,7 @@ The app connects to the backend through BFF routes configured by environment var
 | `BACKEND_BASE_URL`                          | Explicit override for `/api/bff/*` proxy routes        | `http://127.0.0.1:8000/api`                     |
 | `BACKEND_LOCAL_URL`                         | Local-development backend base URL                     | `http://127.0.0.1:8000/api`                     |
 | `BACKEND_CLUSTER_URL`                       | Cluster-internal backend base URL                      | `http://backend-api.demo.svc.cluster.local/api` |
+| `BFF_UPSTREAM_TIMEOUT_MS`                   | Upstream wait for response headers (default `30000`)   | `30000`                                         |
 | `NEXT_PUBLIC_MAX_FILES_PER_RUN`             | UI-visible phase-1 max files per run                   | `3`                                             |
 | `NEXT_PUBLIC_MAX_FILE_SIZE_BYTES`           | UI-visible phase-1 max file size                       | `5242880`                                       |
 | `NEXT_PUBLIC_MAX_EXTRACTED_TEXT_BYTES`      | UI-visible extracted-text budget across accepted files | `250000`                                        |
@@ -275,6 +276,13 @@ Resolution order is:
 - otherwise `BACKEND_CLUSTER_URL` in production-like runtime
 
 If no backend URL resolves, `/api/bff/*` returns `503`, which makes the missing backend wiring obvious.
+
+The proxy streams request and response bodies (uploads are never buffered in
+memory), strips hop-by-hop headers in both directions, and cancels the backend
+request if the browser disconnects. If the backend does not answer within
+`BFF_UPSTREAM_TIMEOUT_MS` it returns `504`; other connection failures return
+`502`. Browser code reaches the BFF only through the typed client in
+`src/lib/api/`.
 
 ## Build the container image
 

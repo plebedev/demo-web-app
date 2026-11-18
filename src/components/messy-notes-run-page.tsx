@@ -7,12 +7,25 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ProtectedDemoShell } from '@/components/protected-demo-shell';
 import { StickyNotesBoard } from '@/components/sticky-notes-board';
 import { useProtectedAccess } from '@/hooks/use-protected-access';
+import { getErrorMessage, isAbortError, isApiError } from '@/lib/api/http';
+import { getFeatureStatus } from '@/lib/api/status';
+import {
+  askRunFollowUp,
+  checkSmsStatus,
+  getRun,
+  getRunSummary,
+  ingestRun,
+  listRunEvents,
+  listRuns,
+  listSampleChaos,
+  loadSampleIntoRun,
+  saveNotificationPreference,
+  submitRun,
+} from '@/lib/api/runs';
 import {
   DemoRun,
-  DemoRunListResponse,
   RunEvent,
   RunExecutionSummary,
-  SampleChaosListResponse,
   SampleChaosSet,
   deriveRunTitle,
   formatEventType,
@@ -21,10 +34,27 @@ import {
 } from '@/lib/demo-runs';
 import { formatByteLimit, phase1DemoConfig } from '@/lib/phase1-demo';
 
-function authHeaders(accessToken: string): HeadersInit {
-  return {
-    Authorization: `Bearer ${accessToken}`,
-  };
+/** Resolves to `fallback` when the backend answers with a non-2xx status. */
+function withFallbackOnApiError<T>(
+  promise: Promise<T>,
+  fallback: T,
+): Promise<T> {
+  return promise.catch((error: unknown) => {
+    if (isApiError(error)) {
+      return fallback;
+    }
+    throw error;
+  });
+}
+
+/** Replaces a backend failure with a fixed message, keeping other errors. */
+function withFixedApiErrorMessage<T>(
+  promise: Promise<T>,
+  message: string,
+): Promise<T> {
+  return promise.catch((error: unknown) => {
+    throw isApiError(error) ? new Error(message) : error;
+  });
 }
 
 export function MessyNotesRunPage({
@@ -65,60 +95,68 @@ export function MessyNotesRunPage({
     }
     const token = accessToken;
 
-    let active = true;
+    const controller = new AbortController();
+    const { signal } = controller;
 
     async function loadRun() {
       try {
         const [
-          runResponse,
-          listResponse,
-          eventsResponse,
-          summaryResponse,
-          samplesResponse,
-        ] = await Promise.all([
-          fetch(`/api/bff/runs/${runId}`, {
-            cache: 'no-store',
-            headers: authHeaders(token),
-          }),
-          fetch('/api/bff/runs', {
-            cache: 'no-store',
-            headers: authHeaders(token),
-          }),
-          fetch(`/api/bff/runs/${runId}/events`, {
-            cache: 'no-store',
-            headers: authHeaders(token),
-          }),
-          fetch(`/api/bff/runs/${runId}/summary`, {
-            cache: 'no-store',
-            headers: authHeaders(token),
-          }),
-          fetch('/api/bff/runs/samples', {
-            cache: 'no-store',
-            headers: authHeaders(token),
+          runResult,
+          listResult,
+          eventsResult,
+          summaryResult,
+          samplesResult,
+        ] = await Promise.allSettled([
+          withFixedApiErrorMessage(
+            getRun(token, runId, { signal }),
+            'Unable to load this run.',
+          ),
+          withFixedApiErrorMessage(
+            listRuns(token, { signal }),
+            'Unable to load run history.',
+          ),
+          withFallbackOnApiError<RunEvent[]>(
+            listRunEvents(token, runId, { signal }),
+            [],
+          ),
+          withFallbackOnApiError<RunExecutionSummary | null>(
+            getRunSummary(token, runId, { signal }),
+            null,
+          ),
+          withFallbackOnApiError(listSampleChaos(token, { signal }), {
+            samples: [],
           }),
         ]);
 
-        if (!runResponse.ok) {
-          throw new Error('Unable to load this run.');
+        const settled = [
+          runResult,
+          listResult,
+          eventsResult,
+          summaryResult,
+          samplesResult,
+        ];
+        for (const result of settled) {
+          if (result.status === 'rejected') {
+            throw result.reason;
+          }
         }
+        const runPayload = (runResult as PromiseFulfilledResult<DemoRun>).value;
+        const listPayload = (
+          listResult as PromiseFulfilledResult<{ runs: DemoRun[] }>
+        ).value;
+        const eventsPayload = (
+          eventsResult as PromiseFulfilledResult<RunEvent[]>
+        ).value;
+        const summaryPayload = (
+          summaryResult as PromiseFulfilledResult<RunExecutionSummary | null>
+        ).value;
+        const samplesPayload = (
+          samplesResult as PromiseFulfilledResult<{
+            samples: SampleChaosSet[];
+          }>
+        ).value;
 
-        if (!listResponse.ok) {
-          throw new Error('Unable to load run history.');
-        }
-
-        const runPayload = (await runResponse.json()) as DemoRun;
-        const listPayload = (await listResponse.json()) as DemoRunListResponse;
-        const eventsPayload = eventsResponse.ok
-          ? ((await eventsResponse.json()) as RunEvent[])
-          : [];
-        const summaryPayload = summaryResponse.ok
-          ? ((await summaryResponse.json()) as RunExecutionSummary)
-          : null;
-        const samplesPayload = samplesResponse.ok
-          ? ((await samplesResponse.json()) as SampleChaosListResponse)
-          : { samples: [] };
-
-        if (!active) {
+        if (signal.aborted) {
           return;
         }
 
@@ -142,22 +180,18 @@ export function MessyNotesRunPage({
         );
         setError(null);
       } catch (loadError) {
-        if (!active) {
+        if (signal.aborted || isAbortError(loadError)) {
           return;
         }
 
-        setError(
-          loadError instanceof Error
-            ? loadError.message
-            : 'Unable to load this run.',
-        );
+        setError(getErrorMessage(loadError, 'Unable to load this run.'));
       }
     }
 
     void loadRun();
 
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [accessToken, runId]);
 
@@ -167,36 +201,33 @@ export function MessyNotesRunPage({
     }
     const token = accessToken;
 
-    let active = true;
+    const controller = new AbortController();
+    const { signal } = controller;
 
     async function loadFeatureStatus() {
       try {
-        const response = await fetch('/api/bff/status', {
-          cache: 'no-store',
-          headers: authHeaders(token),
-        });
-        if (!response.ok) {
-          return;
-        }
-        const payload = (await response.json()) as {
-          features?: Record<string, boolean>;
-        };
-        if (active) {
+        const payload = await getFeatureStatus(token, { signal });
+        if (!signal.aborted) {
           setSmsNotificationAvailable(
             payload.features?.SmsNotification === true,
           );
         }
-      } catch {
-        if (active) {
-          setSmsNotificationAvailable(false);
+      } catch (statusError) {
+        if (
+          signal.aborted ||
+          isAbortError(statusError) ||
+          isApiError(statusError)
+        ) {
+          return;
         }
+        setSmsNotificationAvailable(false);
       }
     }
 
     void loadFeatureStatus();
 
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [accessToken]);
 
@@ -263,22 +294,14 @@ export function MessyNotesRunPage({
     payload.set('input_text', inputText);
     selectedFiles.forEach((file) => payload.append('files', file));
 
-    const response = await fetch(`/api/bff/runs/${run.id}/ingest`, {
-      method: 'POST',
-      headers: authHeaders(accessToken),
-      body: payload,
-    });
-
-    if (!response.ok) {
-      const responsePayload = (await response.json().catch(() => null)) as {
-        detail?: string;
-      } | null;
+    let nextRun: DemoRun;
+    try {
+      nextRun = await ingestRun(accessToken, run.id, payload);
+    } catch (ingestError) {
       throw new Error(
-        responsePayload?.detail || 'Unable to process this input.',
+        getErrorMessage(ingestError, 'Unable to process this input.'),
       );
     }
-
-    const nextRun = (await response.json()) as DemoRun;
     setRun(nextRun);
     setTitle(nextRun.title || '');
     setInputText(nextRun.input_text || '');
@@ -298,31 +321,20 @@ export function MessyNotesRunPage({
       return run;
     }
 
-    const response = await fetch(
-      `/api/bff/runs/${run.id}/notification-preference`,
-      {
-        method: 'POST',
-        headers: {
-          ...authHeaders(accessToken),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          wants_sms: wantsSms,
-          phone_number: wantsSms ? phoneNumber : null,
-        }),
-      },
-    );
-
-    if (!response.ok) {
-      const payload = (await response.json().catch(() => null)) as {
-        detail?: string;
-      } | null;
+    let nextRun: DemoRun;
+    try {
+      nextRun = await saveNotificationPreference(accessToken, run.id, {
+        wants_sms: wantsSms,
+        phone_number: wantsSms ? phoneNumber : null,
+      });
+    } catch (preferenceError) {
       throw new Error(
-        payload?.detail || 'Unable to save notification preference.',
+        getErrorMessage(
+          preferenceError,
+          'Unable to save notification preference.',
+        ),
       );
     }
-
-    const nextRun = (await response.json()) as DemoRun;
     setRun(nextRun);
     setWantsSms(nextRun.notification_preference_json?.wants_sms || false);
     setPhoneNumber(nextRun.notification_preference_json?.phone_number || '');
@@ -370,23 +382,11 @@ export function MessyNotesRunPage({
     setNotice(null);
 
     try {
-      const response = await fetch(`/api/bff/runs/${run.id}/sample`, {
-        method: 'POST',
-        headers: {
-          ...authHeaders(accessToken),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ sample_key: selectedSampleKey }),
-      });
-
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as {
-          detail?: string;
-        } | null;
-        throw new Error(payload?.detail || 'Unable to load sample chaos.');
-      }
-
-      const nextRun = (await response.json()) as DemoRun;
+      const nextRun = await loadSampleIntoRun(
+        accessToken,
+        run.id,
+        selectedSampleKey,
+      );
       setRun(nextRun);
       setTitle(nextRun.title || '');
       setInputText(nextRun.input_text || '');
@@ -399,11 +399,7 @@ export function MessyNotesRunPage({
       );
       setError(null);
     } catch (sampleError) {
-      setError(
-        sampleError instanceof Error
-          ? sampleError.message
-          : 'Unable to load sample chaos.',
-      );
+      setError(getErrorMessage(sampleError, 'Unable to load sample chaos.'));
     } finally {
       setIsLoadingSample(false);
     }
@@ -444,22 +440,15 @@ export function MessyNotesRunPage({
 
     setIsCheckingPhoneStatus(true);
     try {
-      const response = await fetch('/api/bff/runs/sms-status', {
-        method: 'POST',
-        headers: {
-          ...authHeaders(accessToken),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ phone_number: phoneNumber }),
-      });
-      if (!response.ok) {
-        return;
+      let payload;
+      try {
+        payload = await checkSmsStatus(accessToken, phoneNumber);
+      } catch (statusError) {
+        if (isApiError(statusError)) {
+          return;
+        }
+        throw statusError;
       }
-      const payload = (await response.json()) as {
-        valid: boolean;
-        phone_number: string | null;
-        phone_number_blocked: boolean;
-      };
       setPhoneNumberBlocked(payload.phone_number_blocked);
       if (payload.phone_number) {
         setPhoneNumber(payload.phone_number);
@@ -478,33 +467,17 @@ export function MessyNotesRunPage({
     setNotice(null);
 
     try {
-      const response = await fetch(`/api/bff/runs/${run.id}/follow-up`, {
-        method: 'POST',
-        headers: {
-          ...authHeaders(accessToken),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ question: followUpQuestion }),
-      });
-
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as {
-          detail?: string;
-        } | null;
-        throw new Error(payload?.detail || 'Unable to answer follow-up.');
-      }
-
-      const nextRun = (await response.json()) as DemoRun;
+      const nextRun = await askRunFollowUp(
+        accessToken,
+        run.id,
+        followUpQuestion,
+      );
       setRun(nextRun);
       setFollowUpQuestion('');
       setNotice('Follow-up answered. Boundaries have re-entered the chat.');
       setError(null);
     } catch (followUpError) {
-      setError(
-        followUpError instanceof Error
-          ? followUpError.message
-          : 'Unable to answer follow-up.',
-      );
+      setError(getErrorMessage(followUpError, 'Unable to answer follow-up.'));
     } finally {
       setIsAskingFollowUp(false);
     }
@@ -533,19 +506,7 @@ export function MessyNotesRunPage({
         targetRun = preferenceRun;
       }
 
-      const response = await fetch(`/api/bff/runs/${targetRun.id}/submit`, {
-        method: 'POST',
-        headers: authHeaders(accessToken),
-      });
-
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as {
-          detail?: string;
-        } | null;
-        throw new Error(payload?.detail || 'Unable to submit this run.');
-      }
-
-      const payload = (await response.json()) as DemoRun;
+      const payload = await submitRun(accessToken, targetRun.id);
       setRun(payload);
       await refreshEvents(payload.id);
       await refreshSummary(payload.id);
@@ -556,11 +517,7 @@ export function MessyNotesRunPage({
       );
       setError(null);
     } catch (submitError) {
-      setError(
-        submitError instanceof Error
-          ? submitError.message
-          : 'Unable to submit this run.',
-      );
+      setError(getErrorMessage(submitError, 'Unable to submit this run.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -571,12 +528,12 @@ export function MessyNotesRunPage({
       return;
     }
 
-    const response = await fetch(`/api/bff/runs/${targetRunId}/events`, {
-      cache: 'no-store',
-      headers: authHeaders(accessToken),
-    });
-    if (response.ok) {
-      setEvents((await response.json()) as RunEvent[]);
+    const nextEvents = await withFallbackOnApiError<RunEvent[] | null>(
+      listRunEvents(accessToken, targetRunId),
+      null,
+    );
+    if (nextEvents) {
+      setEvents(nextEvents);
     }
   }
 
@@ -585,12 +542,13 @@ export function MessyNotesRunPage({
       return;
     }
 
-    const response = await fetch(`/api/bff/runs/${targetRunId}/summary`, {
-      cache: 'no-store',
-      headers: authHeaders(accessToken),
-    });
-    if (response.ok) {
-      setSummary((await response.json()) as RunExecutionSummary);
+    const nextSummary =
+      await withFallbackOnApiError<RunExecutionSummary | null>(
+        getRunSummary(accessToken, targetRunId),
+        null,
+      );
+    if (nextSummary) {
+      setSummary(nextSummary);
     }
   }
 

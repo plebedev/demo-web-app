@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 
 import { resolveBackendRootUrl } from '@/lib/config';
+import {
+  fetchUpstream,
+  resolveUpstreamTimeoutMs,
+} from '@/lib/server/reverse-proxy';
 
-export async function GET() {
+export async function GET(request: Request) {
   const backendRootUrl = resolveBackendRootUrl();
 
   if (!backendRootUrl) {
@@ -13,9 +17,16 @@ export async function GET() {
   }
 
   try {
-    const response = await fetch(`${backendRootUrl}/health`, {
-      cache: 'no-store',
+    const response = await fetchUpstream(`${backendRootUrl}/health`, {
+      method: 'GET',
+      headers: new Headers(),
+      redirect: 'follow',
+      // Cancel the probe if the caller goes away.
+      signal: request?.signal,
+      timeoutMs: resolveUpstreamTimeoutMs(),
     });
+    // Only the status matters; release the body without reading it.
+    await response.body?.cancel().catch(() => {});
 
     if (!response.ok) {
       return NextResponse.json(

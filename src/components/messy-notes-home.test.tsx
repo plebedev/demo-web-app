@@ -1,6 +1,6 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MessyNotesHome } from '@/components/messy-notes-home';
 
@@ -26,6 +26,10 @@ describe('MessyNotesHome', () => {
     pushMock.mockReset();
     replaceMock.mockReset();
     vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it('renders protected run history from the backend', async () => {
@@ -80,5 +84,69 @@ describe('MessyNotesHome', () => {
     });
     expect(screen.getByText('Draft')).toBeInTheDocument();
     expect(screen.getByText('Workflow messy-notes-v1.')).toBeInTheDocument();
+  });
+
+  it('loads runs through the shared client with the bearer token', async () => {
+    const fetchMock = vi.fn<
+      (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+    >(async () => Response.json({ runs: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<MessyNotesHome />);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/bff/runs',
+        expect.objectContaining({ method: 'GET', cache: 'no-store' }),
+      );
+    });
+    const init = fetchMock.mock.calls[0][1];
+    expect(new Headers(init?.headers).get('Authorization')).toBe(
+      'Bearer demo-token',
+    );
+    expect(init?.body).toBeUndefined();
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('shows the fixed load error instead of backend details', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json({ detail: 'database exploded' }, { status: 500 }),
+      ),
+    );
+
+    render(<MessyNotesHome />);
+
+    expect(
+      await screen.findByText('Unable to load saved runs.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('database exploded')).not.toBeInTheDocument();
+  });
+
+  it('cancels the run list request when the component unmounts', async () => {
+    let capturedSignal: AbortSignal | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_input: RequestInfo | URL, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            capturedSignal = init?.signal ?? undefined;
+            capturedSignal?.addEventListener('abort', () => {
+              reject(new DOMException('Aborted', 'AbortError'));
+            });
+          }),
+      ),
+    );
+
+    const { unmount } = render(<MessyNotesHome />);
+    await waitFor(() => {
+      expect(capturedSignal).toBeDefined();
+    });
+    expect(capturedSignal?.aborted).toBe(false);
+
+    unmount();
+
+    expect(capturedSignal?.aborted).toBe(true);
   });
 });

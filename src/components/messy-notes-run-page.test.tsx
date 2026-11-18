@@ -758,7 +758,7 @@ describe('MessyNotesRunPage', () => {
       await screen.findByDisplayValue('Product planning mess'),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
+      await screen.findByText(
         'Sample chaos loaded. It is curated, not freshly hallucinated.',
       ),
     ).toBeInTheDocument();

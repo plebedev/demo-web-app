@@ -9,12 +9,9 @@ import {
   persistAccessToken,
   readStoredAccessToken,
 } from '@/lib/access-token';
+import { verifyAccessToken } from '@/lib/api/access';
+import { isAbortError, isApiError } from '@/lib/api/http';
 import { ExperienceId } from '@/lib/experiences';
-
-type VerificationPayload = {
-  experience_id: ExperienceId;
-  expires_at: string;
-};
 
 export function useProtectedAccess(
   experienceId: ExperienceId,
@@ -36,10 +33,11 @@ export function useProtectedAccess(
     }
     const storedAccessToken = storedToken.accessToken;
 
-    let active = true;
+    const controller = new AbortController();
+    const isCurrent = () => !controller.signal.aborted;
 
     function keepStoredTokenForTransientFailure() {
-      if (!active) {
+      if (!isCurrent()) {
         return;
       }
       setAccessToken(storedAccessToken);
@@ -47,7 +45,7 @@ export function useProtectedAccess(
     }
 
     function clearStoredTokenForHardFailure() {
-      if (!active) {
+      if (!isCurrent()) {
         return;
       }
       clearStoredAccessToken(experienceId);
@@ -60,28 +58,14 @@ export function useProtectedAccess(
 
     async function verifyToken() {
       try {
-        const response = await fetch('/api/bff/access/verify', {
-          cache: 'no-store',
-          headers: {
-            Authorization: `Bearer ${storedAccessToken}`,
-          },
+        const payload = await verifyAccessToken(storedAccessToken, {
+          signal: controller.signal,
         });
-
-        if (!response.ok) {
-          if (isHardAccessVerificationFailure(response.status)) {
-            clearStoredTokenForHardFailure();
-            return;
-          }
-          keepStoredTokenForTransientFailure();
-          return;
-        }
-
-        const payload = (await response.json()) as VerificationPayload;
         if (payload.experience_id !== experienceId) {
           clearStoredTokenForHardFailure();
           return;
         }
-        if (!active) {
+        if (!isCurrent()) {
           return;
         }
 
@@ -92,7 +76,17 @@ export function useProtectedAccess(
         });
         setAccessToken(storedAccessToken);
         setIsChecking(false);
-      } catch {
+      } catch (error) {
+        if (isAbortError(error)) {
+          return;
+        }
+        if (
+          isApiError(error) &&
+          isHardAccessVerificationFailure(error.status)
+        ) {
+          clearStoredTokenForHardFailure();
+          return;
+        }
         keepStoredTokenForTransientFailure();
       }
     }
@@ -100,7 +94,7 @@ export function useProtectedAccess(
     void verifyToken();
 
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [experienceId, router, shouldRedirect]);
 

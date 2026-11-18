@@ -12,6 +12,11 @@ import { RagWorkspace } from '@/components/rag-workspace';
 
 const replaceMock = vi.fn();
 
+/** The shared HTTP client always sends an explicit method. */
+function methodOf(init?: RequestInit): string {
+  return (init?.method ?? 'GET').toUpperCase();
+}
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
     replace: replaceMock,
@@ -80,21 +85,27 @@ describe('RagWorkspace', () => {
       async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
 
-        if (url.endsWith('/api/bff/rag/personas') && !init?.method) {
+        if (url.endsWith('/api/bff/rag/personas') && methodOf(init) === 'GET') {
           return new Response(JSON.stringify({ personas: [] }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
           });
         }
 
-        if (url.endsWith('/api/bff/rag/conversations') && !init?.method) {
+        if (
+          url.endsWith('/api/bff/rag/conversations') &&
+          methodOf(init) === 'GET'
+        ) {
           return new Response(JSON.stringify({ conversations: [] }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
           });
         }
 
-        if (url.endsWith('/api/bff/rag/personas') && init?.method === 'POST') {
+        if (
+          url.endsWith('/api/bff/rag/personas') &&
+          methodOf(init) === 'POST'
+        ) {
           return new Response(
             JSON.stringify({
               id: 11,
@@ -116,7 +127,7 @@ describe('RagWorkspace', () => {
 
         if (
           url.endsWith('/api/bff/rag/personas/11/documents') &&
-          !init?.method
+          methodOf(init) === 'GET'
         ) {
           return new Response(JSON.stringify({ documents: [] }), {
             status: 200,
@@ -126,7 +137,7 @@ describe('RagWorkspace', () => {
 
         if (
           url.endsWith('/api/bff/rag/personas/11') &&
-          init?.method === 'PUT'
+          methodOf(init) === 'PUT'
         ) {
           return new Response(
             JSON.stringify({
@@ -148,7 +159,7 @@ describe('RagWorkspace', () => {
 
         if (
           url.endsWith('/api/bff/rag/personas/11') &&
-          init?.method === 'DELETE'
+          methodOf(init) === 'DELETE'
         ) {
           return new Response(null, { status: 204 });
         }
@@ -218,7 +229,7 @@ describe('RagWorkspace', () => {
       async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
 
-        if (url.endsWith('/api/bff/rag/personas') && !init?.method) {
+        if (url.endsWith('/api/bff/rag/personas') && methodOf(init) === 'GET') {
           return new Response(
             JSON.stringify({
               personas: [
@@ -241,7 +252,10 @@ describe('RagWorkspace', () => {
           );
         }
 
-        if (url.endsWith('/api/bff/rag/conversations') && !init?.method) {
+        if (
+          url.endsWith('/api/bff/rag/conversations') &&
+          methodOf(init) === 'GET'
+        ) {
           return new Response(JSON.stringify({ conversations: [] }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
@@ -250,7 +264,7 @@ describe('RagWorkspace', () => {
 
         if (
           url.endsWith('/api/bff/rag/personas/21/documents') &&
-          !init?.method
+          methodOf(init) === 'GET'
         ) {
           return new Response(JSON.stringify({ documents: [] }), {
             status: 200,
@@ -260,15 +274,13 @@ describe('RagWorkspace', () => {
 
         if (
           url.endsWith('/api/bff/rag/personas/21/documents') &&
-          init?.method === 'POST'
+          methodOf(init) === 'POST'
         ) {
-          expect(init.body).toBeInstanceOf(FormData);
-          expect((init.headers as Record<string, string>).Authorization).toBe(
-            'Bearer rag-token',
-          );
-          expect(
-            (init.headers as Record<string, string>)['Content-Type'],
-          ).toBeUndefined();
+          expect(init?.body).toBeInstanceOf(FormData);
+          const headers = new Headers(init?.headers);
+          expect(headers.get('Authorization')).toBe('Bearer rag-token');
+          // Multipart uploads must let the browser set the boundary.
+          expect(headers.get('Content-Type')).toBeNull();
           return new Response(
             JSON.stringify({
               document: {
@@ -290,7 +302,7 @@ describe('RagWorkspace', () => {
 
         if (
           url.endsWith('/api/bff/rag/personas/21/documents/31') &&
-          init?.method === 'DELETE'
+          methodOf(init) === 'DELETE'
         ) {
           return new Response(null, { status: 204 });
         }
@@ -345,7 +357,7 @@ describe('RagWorkspace', () => {
       async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
 
-        if (url.endsWith('/api/bff/rag/personas') && !init?.method) {
+        if (url.endsWith('/api/bff/rag/personas') && methodOf(init) === 'GET') {
           return new Response(
             JSON.stringify({
               personas: [
@@ -368,7 +380,10 @@ describe('RagWorkspace', () => {
           );
         }
 
-        if (url.endsWith('/api/bff/rag/conversations') && !init?.method) {
+        if (
+          url.endsWith('/api/bff/rag/conversations') &&
+          methodOf(init) === 'GET'
+        ) {
           return new Response(JSON.stringify({ conversations: [] }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
@@ -377,7 +392,7 @@ describe('RagWorkspace', () => {
 
         if (
           url.endsWith('/api/bff/rag/personas/41/documents') &&
-          !init?.method
+          methodOf(init) === 'GET'
         ) {
           return new Response(JSON.stringify({ documents: [] }), {
             status: 200,
@@ -387,7 +402,7 @@ describe('RagWorkspace', () => {
 
         if (
           url.endsWith('/api/bff/rag/conversations') &&
-          init?.method === 'POST'
+          methodOf(init) === 'POST'
         ) {
           return new Response(
             JSON.stringify({
@@ -406,7 +421,10 @@ describe('RagWorkspace', () => {
           );
         }
 
-        if (url.endsWith('/api/bff/rag/conversations/51') && !init?.method) {
+        if (
+          url.endsWith('/api/bff/rag/conversations/51') &&
+          methodOf(init) === 'GET'
+        ) {
           return new Response(
             JSON.stringify({
               conversation: {
@@ -429,7 +447,7 @@ describe('RagWorkspace', () => {
 
         if (
           url.endsWith('/api/bff/rag/conversations/51/messages') &&
-          init?.method === 'POST'
+          methodOf(init) === 'POST'
         ) {
           return new Response(
             JSON.stringify({

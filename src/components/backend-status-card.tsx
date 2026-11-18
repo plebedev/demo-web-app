@@ -2,6 +2,9 @@
 
 import React, { useEffect, useState } from 'react';
 
+import { getErrorMessage, isAbortError, isApiError } from '@/lib/api/http';
+import { getBackendHealth } from '@/lib/api/status';
+
 type ReadinessState = 'checking' | 'ready' | 'not-ready';
 
 function getReadinessState(
@@ -24,45 +27,34 @@ export function BackendStatusCard() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let active = true;
+    const controller = new AbortController();
 
     async function loadStatus() {
       try {
-        const response = await fetch('/api/backend-health', {
-          cache: 'no-store',
-        });
-
-        if (!response.ok) {
-          const payload = await response.json().catch(() => null);
-          throw new Error(
-            payload?.error || `Backend request failed with ${response.status}`,
-          );
-        }
-
-        await response.json();
-        if (!active) {
+        await getBackendHealth({ signal: controller.signal });
+        if (controller.signal.aborted) {
           return;
         }
 
         setStatus(true);
         setError(null);
       } catch (requestError) {
-        if (!active) {
+        if (controller.signal.aborted || isAbortError(requestError)) {
           return;
         }
 
         setStatus(false);
         setError(
-          requestError instanceof Error
-            ? requestError.message
-            : 'Unknown error',
+          isApiError(requestError) && !requestError.detail
+            ? `Backend request failed with ${requestError.status}`
+            : getErrorMessage(requestError, 'Unknown error'),
         );
       }
     }
 
     void loadStatus();
     return () => {
-      active = false;
+      controller.abort();
     };
   }, []);
 

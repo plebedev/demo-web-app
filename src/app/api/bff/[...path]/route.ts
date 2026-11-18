@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+
 import { resolveBackendBaseUrl } from '@/lib/config';
+import {
+  buildUpstreamUrl,
+  resolveUpstreamTimeoutMs,
+  reverseProxy,
+} from '@/lib/server/reverse-proxy';
 
 async function proxyRequest(request: NextRequest, path: string[]) {
   const backendBaseUrl = resolveBackendBaseUrl();
@@ -13,32 +19,17 @@ async function proxyRequest(request: NextRequest, path: string[]) {
     );
   }
 
-  const targetUrl = new URL(
-    path.join('/'),
-    `${backendBaseUrl.replace(/\/$/, '')}/`,
+  const targetUrl = buildUpstreamUrl(
+    backendBaseUrl,
+    path,
+    request.nextUrl.searchParams,
   );
-  request.nextUrl.searchParams.forEach((value, key) => {
-    targetUrl.searchParams.append(key, value);
-  });
+  if (!targetUrl) {
+    return NextResponse.json({ error: 'Invalid proxy path' }, { status: 400 });
+  }
 
-  const headers = new Headers(request.headers);
-  headers.set('x-forwarded-host', request.headers.get('host') || '');
-  headers.set('x-forwarded-proto', request.nextUrl.protocol.replace(':', ''));
-  headers.delete('host');
-
-  const response = await fetch(targetUrl, {
-    method: request.method,
-    headers,
-    body:
-      request.method === 'GET' || request.method === 'HEAD'
-        ? undefined
-        : new Uint8Array(await request.arrayBuffer()),
-    redirect: 'manual',
-  });
-
-  return new NextResponse(response.body, {
-    status: response.status,
-    headers: response.headers,
+  return reverseProxy(request, targetUrl, {
+    timeoutMs: resolveUpstreamTimeoutMs(),
   });
 }
 

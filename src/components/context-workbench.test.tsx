@@ -472,6 +472,79 @@ describe('ContextWorkbench', () => {
       '/api/bff/context/domains/job_search/artifact-uploads',
       expect.objectContaining({ method: 'POST' }),
     );
+    const uploadCall = (
+      fetchMock.mock.calls as unknown as [string, RequestInit | undefined][]
+    ).find(([url]) => url.endsWith('/artifact-uploads'));
+    expect(uploadCall?.[1]?.body).toBeInstanceOf(FormData);
+    const uploadHeaders = new Headers(uploadCall?.[1]?.headers);
+    expect(uploadHeaders.get('Authorization')).toBe('Bearer context-token');
+    expect(uploadHeaders.get('Content-Type')).toBeNull();
+    const uploadBody = uploadCall?.[1]?.body as FormData;
+    expect(uploadBody.get('artifact_type_id')).toBe('job_description');
+    expect((uploadBody.get('file') as File).name).toBe('resume.txt');
+  });
+
+  it('cancels the previous domain refresh when another domain is selected', async () => {
+    const pendingSignals = new Map<string, AbortSignal>();
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const path = url.split('?')[0];
+      if (path.endsWith('/api/bff/context/domains')) {
+        return Response.json({
+          domains: [
+            { id: 'job_search', display_name: 'Job Search / Career Context' },
+            { id: 'second', display_name: 'Second Domain' },
+          ],
+        });
+      }
+      if (path.includes('/api/bff/context/domains/job_search')) {
+        // The first domain never answers; only cancellation ends it.
+        return new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal;
+          if (signal) {
+            pendingSignals.set(path, signal);
+            signal.addEventListener('abort', () =>
+              reject(new DOMException('Aborted', 'AbortError')),
+            );
+          }
+        });
+      }
+      if (path.endsWith('/api/bff/context/domains/second')) {
+        return Response.json({
+          id: 'second',
+          display_name: 'Second Domain',
+          artifact_types: [{ id: 'note', display_name: 'Note' }],
+          views: [],
+        });
+      }
+      if (path.endsWith('/api/bff/context/domains/second/artifacts')) {
+        return Response.json({ artifacts: [] });
+      }
+      if (path.endsWith('/api/bff/context/domains/second/actionable-items')) {
+        return Response.json({ actionable_items: [] });
+      }
+      return new Response('{}', { status: 404 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ContextWorkbench />);
+
+    await waitFor(() => {
+      expect(pendingSignals.size).toBe(3);
+    });
+    const firstRefresh = Array.from(pendingSignals.values());
+    expect(firstRefresh.every((signal) => !signal.aborted)).toBe(true);
+
+    fireEvent.change(screen.getByDisplayValue('Job Search / Career Context'), {
+      target: { value: 'second' },
+    });
+
+    await waitFor(() => {
+      expect(firstRefresh.every((signal) => signal.aborted)).toBe(true);
+    });
+    expect(
+      await screen.findByRole('option', { name: 'Note' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Unable to load/)).not.toBeInTheDocument();
   });
 
   it('shows inline access instead of redirecting when no token is stored', () => {

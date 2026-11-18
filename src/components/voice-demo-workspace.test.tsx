@@ -76,6 +76,11 @@ function makePersona(id: number, name: string) {
   };
 }
 
+/** The shared HTTP client always sends an explicit method. */
+function methodOf(init?: RequestInit): string {
+  return (init?.method ?? 'GET').toUpperCase();
+}
+
 /** Build a fetch mock that handles the three standard read endpoints. */
 function makeBaseFetch(
   extraHandler?: (
@@ -93,16 +98,13 @@ function makeBaseFetch(
       }
     }
 
-    if (
-      url.endsWith('/api/bff/voice/personas') &&
-      (!init?.method || init.method === 'GET')
-    ) {
+    if (url.endsWith('/api/bff/voice/personas') && methodOf(init) === 'GET') {
       return new Response(emptyPersonasResponse, {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
     }
-    if (url.endsWith('/api/bff/voice/config') && !init?.method) {
+    if (url.endsWith('/api/bff/voice/config') && methodOf(init) === 'GET') {
       return emptyConfigResponse.clone();
     }
     if (url.endsWith('/api/bff/voice/providers')) {
@@ -204,7 +206,7 @@ describe('VoiceDemoWorkspace', () => {
     };
 
     const fetchMock = makeBaseFetch((url, init) => {
-      if (url.endsWith('/api/bff/voice/config') && init?.method === 'PUT') {
+      if (url.endsWith('/api/bff/voice/config') && methodOf(init) === 'PUT') {
         return new Response(JSON.stringify(configResponse), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
@@ -246,8 +248,11 @@ describe('VoiceDemoWorkspace', () => {
     const requestBodies: Record<string, unknown>[] = [];
 
     const fetchMock = makeBaseFetch((url, init) => {
-      if (url.endsWith('/api/bff/voice/personas') && init?.method === 'POST') {
-        requestBodies.push(JSON.parse(String(init.body)));
+      if (
+        url.endsWith('/api/bff/voice/personas') &&
+        methodOf(init) === 'POST'
+      ) {
+        requestBodies.push(JSON.parse(String(init?.body)));
         return new Response(JSON.stringify(newPersona), {
           status: 201,
           headers: { 'Content-Type': 'application/json' },

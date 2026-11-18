@@ -13,97 +13,32 @@ import React, {
 import { InlineAccessPanel } from '@/components/inline-access-panel';
 import { ProtectedDemoShell } from '@/components/protected-demo-shell';
 import { useProtectedAccess } from '@/hooks/use-protected-access';
-
-type ArtifactType = {
-  id: string;
-  display_name: string;
-};
-
-type DomainDetail = {
-  id: string;
-  display_name: string;
-  artifact_types: ArtifactType[];
-  views: { id: string; display_name: string; description: string | null }[];
-};
-
-type DomainSummary = {
-  id: string;
-  display_name: string;
-};
-
-type SourceLink = {
-  artifact_id: string;
-  chunk_id: string | null;
-  label: string | null;
-  excerpt: string | null;
-  start_offset?: number | null;
-  end_offset?: number | null;
-};
-
-type EvidenceLink = {
-  source: SourceLink;
-  confidence: number | null;
-  note: string | null;
-};
-
-type Artifact = {
-  id: string;
-  artifact_type_id: string;
-  title: string | null;
-  text: string;
-  source_uri: string | null;
-  metadata: Record<string, unknown>;
-  created_at: string;
-};
-
-type ArtifactChunk = {
-  id: string;
-  artifact_id: string;
-  chunk_index: number;
-  text: string;
-  start_offset: number;
-  end_offset: number;
-  source_link: SourceLink;
-};
-
-type ArtifactDetail = {
-  artifact: Artifact;
-  chunks: ArtifactChunk[];
-};
-
-type ViewSection = {
-  id: string;
-  title: string;
-  content: string | null;
-  evidence_links: EvidenceLink[];
-  metadata: Record<string, unknown>;
-};
-
-type PerspectiveView = {
-  id: string;
-  view_definition_id: string;
-  title: string;
-  sections: ViewSection[];
-  metadata: Record<string, unknown>;
-};
-
-type Task = {
-  id: string;
-  item_type: string;
-  title: string;
-  description: string | null;
-  readiness_status: string;
-  source_links: SourceLink[];
-  metadata?: Record<string, unknown>;
-};
-
-type IngestResponse = {
-  artifact: Artifact;
-  chunks: unknown[];
-  signals: unknown[];
-  actionable_items: Task[];
-  extractor_ids: string[];
-};
+import {
+  Artifact,
+  ArtifactDetail,
+  DomainDetail,
+  DomainSummary,
+  EvidenceLink,
+  IngestResponse,
+  PerspectiveView,
+  SourceLink,
+  Task,
+  ViewSection,
+  getArtifactDetail,
+  getContextDomain,
+  getPerspectiveView,
+  ingestArtifactText,
+  listActionableItems,
+  listContextArtifacts,
+  listContextDomains,
+  uploadArtifactFile,
+} from '@/lib/api/context';
+import {
+  ApiAbortError,
+  getErrorMessage,
+  isAbortError,
+  isApiError,
+} from '@/lib/api/http';
 
 type WorkbenchTab = 'overview' | 'artifacts' | 'perspectives' | 'items';
 
@@ -164,13 +99,6 @@ const PERSPECTIVE_PROFILES: Record<
       'Use this to decide what needs human judgment before committing further.',
   },
 };
-
-function authHeaders(accessToken: string, contentType = true): HeadersInit {
-  return {
-    Authorization: `Bearer ${accessToken}`,
-    ...(contentType ? { 'Content-Type': 'application/json' } : {}),
-  };
-}
 
 function readableArtifactType(domain: DomainDetail | null, typeId: string) {
   return (
@@ -418,44 +346,73 @@ export function ContextWorkbench() {
     }, {});
   }, [artifacts]);
 
+  // Only one domain refresh may be in flight; a new one cancels the last.
+  const refreshControllerRef = useRef<AbortController | null>(null);
+
   const refreshDomainData = useCallback(
-    async (token: string, domainId: string) => {
-      const [domainResponse, artifactsResponse, tasksResponse] =
-        await Promise.all([
-          fetch(`/api/bff/context/domains/${domainId}`, {
-            headers: authHeaders(token),
-          }),
-          fetch(`/api/bff/context/domains/${domainId}/artifacts`, {
-            headers: authHeaders(token),
-          }),
-          fetch(`/api/bff/context/domains/${domainId}/actionable-items`, {
-            headers: authHeaders(token),
-          }),
-        ]);
-      if (!domainResponse.ok || !artifactsResponse.ok || !tasksResponse.ok) {
-        const failed = [
-          !domainResponse.ok && `domain metadata (${domainResponse.status})`,
-          !artifactsResponse.ok && `artifacts (${artifactsResponse.status})`,
-          !tasksResponse.ok && `actionable items (${tasksResponse.status})`,
-        ].filter(Boolean);
-        throw new Error(`Unable to load ${failed.join(', ')}.`);
+    async (token: string, domainId: string, outerSignal?: AbortSignal) => {
+      refreshControllerRef.current?.abort();
+      const controller = new AbortController();
+      refreshControllerRef.current = controller;
+      const { signal } = controller;
+      const forwardAbort = () => controller.abort();
+      if (outerSignal?.aborted) {
+        controller.abort();
+      } else {
+        outerSignal?.addEventListener('abort', forwardAbort, { once: true });
       }
-      const domainPayload = (await domainResponse.json()) as DomainDetail;
-      const artifactsPayload = (await artifactsResponse.json()) as {
-        artifacts: Artifact[];
-      };
-      const tasksPayload = (await tasksResponse.json()) as {
-        actionable_items: Task[];
-      };
-      setDomain(domainPayload);
-      setArtifacts(artifactsPayload.artifacts);
-      setTasks(tasksPayload.actionable_items);
-      setSelectedViewId(
-        (current) => current || domainPayload.views[0]?.id || '',
-      );
-      setSelectedArtifactId(
-        (current) => current ?? artifactsPayload.artifacts[0]?.id ?? null,
-      );
+
+      try {
+        const [domainResult, artifactsResult, tasksResult] =
+          await Promise.allSettled([
+            getContextDomain(token, domainId, { signal }),
+            listContextArtifacts(token, domainId, { signal }),
+            listActionableItems(token, domainId, { signal }),
+          ]);
+        if (signal.aborted) {
+          throw new ApiAbortError();
+        }
+        const results = [
+          { label: 'domain metadata', result: domainResult },
+          { label: 'artifacts', result: artifactsResult },
+          { label: 'actionable items', result: tasksResult },
+        ];
+        for (const { result } of results) {
+          if (result.status === 'rejected' && !isApiError(result.reason)) {
+            throw result.reason;
+          }
+        }
+        const failed = results.flatMap(({ label, result }) =>
+          result.status === 'rejected' && isApiError(result.reason)
+            ? [`${label} (${result.reason.status})`]
+            : [],
+        );
+        if (
+          failed.length > 0 ||
+          domainResult.status !== 'fulfilled' ||
+          artifactsResult.status !== 'fulfilled' ||
+          tasksResult.status !== 'fulfilled'
+        ) {
+          throw new Error(`Unable to load ${failed.join(', ')}.`);
+        }
+        const domainPayload = domainResult.value;
+        const artifactsPayload = artifactsResult.value;
+        const tasksPayload = tasksResult.value;
+        setDomain(domainPayload);
+        setArtifacts(artifactsPayload.artifacts);
+        setTasks(tasksPayload.actionable_items);
+        setSelectedViewId(
+          (current) => current || domainPayload.views[0]?.id || '',
+        );
+        setSelectedArtifactId(
+          (current) => current ?? artifactsPayload.artifacts[0]?.id ?? null,
+        );
+      } finally {
+        outerSignal?.removeEventListener('abort', forwardAbort);
+        if (refreshControllerRef.current === controller) {
+          refreshControllerRef.current = null;
+        }
+      }
     },
     [],
   );
@@ -470,18 +427,13 @@ export function ContextWorkbench() {
       return;
     }
     const token = accessToken;
-    let active = true;
+    const controller = new AbortController();
+    const { signal } = controller;
 
     async function loadDomains() {
       setStatus('Loading registered domains');
-      const response = await fetch('/api/bff/context/domains', {
-        headers: authHeaders(token),
-      });
-      if (!response.ok) {
-        throw new Error('Unable to load Context Engine domains.');
-      }
-      const payload = (await response.json()) as { domains: DomainSummary[] };
-      if (!active) {
+      const payload = await listContextDomains(token, { signal });
+      if (signal.aborted) {
         return;
       }
       setDomains(payload.domains);
@@ -494,14 +446,14 @@ export function ContextWorkbench() {
       }
     }
 
-    loadDomains().catch(() => {
-      if (active) {
+    loadDomains().catch((caught) => {
+      if (!signal.aborted && !isAbortError(caught)) {
         setStatus('Unable to load Context Engine data.');
       }
     });
 
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [accessToken]);
 
@@ -509,16 +461,17 @@ export function ContextWorkbench() {
     if (!accessToken || !selectedDomainId) {
       return;
     }
-    let active = true;
+    const controller = new AbortController();
+    const { signal } = controller;
     setStatus('Loading selected domain');
-    refreshDomainData(accessToken, selectedDomainId)
+    refreshDomainData(accessToken, selectedDomainId, signal)
       .then(() => {
-        if (active) {
+        if (!signal.aborted) {
           setStatus('Ready');
         }
       })
       .catch((caught) => {
-        if (active) {
+        if (!signal.aborted && !isAbortError(caught)) {
           setDomain(null);
           setArtifacts([]);
           setTasks([]);
@@ -530,7 +483,7 @@ export function ContextWorkbench() {
         }
       });
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [accessToken, refreshDomainData, selectedDomainId]);
 
@@ -540,7 +493,8 @@ export function ContextWorkbench() {
       setIsViewLoading(false);
       return;
     }
-    let active = true;
+    const controller = new AbortController();
+    const { signal } = controller;
     setIsViewLoading(true);
     setError('');
     const shouldRegenerate = shouldRegenerateViewRef.current;
@@ -548,42 +502,34 @@ export function ContextWorkbench() {
     setStatus(
       shouldRegenerate ? 'Regenerating perspective' : 'Loading perspective',
     );
-    const viewUrl = `/api/bff/context/domains/${selectedDomainId}/views/${selectedViewId}${
-      shouldRegenerate ? '?regenerate=true' : ''
-    }`;
-    fetch(viewUrl, {
-      headers: authHeaders(accessToken),
+    getPerspectiveView(accessToken, selectedDomainId, selectedViewId, {
+      regenerate: shouldRegenerate,
+      signal,
     })
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error('Unable to build perspective.');
-        }
-        return (await response.json()) as { view: PerspectiveView };
-      })
       .then((payload) => {
-        if (active) {
+        if (!signal.aborted) {
           setView(payload.view);
           setStatus(viewGenerationLabel(payload.view));
         }
       })
       .catch((caught) => {
-        if (active) {
+        if (!signal.aborted && !isAbortError(caught)) {
           setView(null);
           setError(
-            caught instanceof Error
-              ? caught.message
-              : 'Unable to build perspective.',
+            getErrorMessage(caught, 'Unable to build perspective.', {
+              preferDetail: false,
+            }),
           );
           setStatus('Perspective build failed');
         }
       })
       .finally(() => {
-        if (active) {
+        if (!signal.aborted) {
           setIsViewLoading(false);
         }
       });
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [accessToken, selectedDomainId, selectedViewId, viewRefreshVersion]);
 
@@ -592,33 +538,23 @@ export function ContextWorkbench() {
       setArtifactDetail(null);
       return;
     }
-    let active = true;
-    fetch(
-      `/api/bff/context/domains/${selectedDomainId}/artifacts/${selectedArtifactId}`,
-      {
-        headers: authHeaders(accessToken),
-      },
-    )
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error(
-            `Unable to load artifact detail (${response.status}).`,
-          );
-        }
-        return (await response.json()) as ArtifactDetail;
-      })
+    const controller = new AbortController();
+    const { signal } = controller;
+    getArtifactDetail(accessToken, selectedDomainId, selectedArtifactId, {
+      signal,
+    })
       .then((payload) => {
-        if (active) {
+        if (!signal.aborted) {
           setArtifactDetail(payload);
         }
       })
       .catch(() => {
-        if (active) {
+        if (!signal.aborted) {
           setArtifactDetail(null);
         }
       });
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [accessToken, selectedArtifactId, selectedDomainId]);
 
@@ -631,54 +567,44 @@ export function ContextWorkbench() {
     setError('');
     setStatus('Ingesting artifact');
     try {
-      let response: Response;
+      let payload: IngestResponse;
       if (selectedFile) {
-        const payload = new FormData();
-        payload.set('artifact_type_id', form.artifactTypeId);
+        const upload = new FormData();
+        upload.set('artifact_type_id', form.artifactTypeId);
         if (form.title.trim()) {
-          payload.set('title', form.title.trim());
+          upload.set('title', form.title.trim());
         }
         if (form.sourceUri.trim()) {
-          payload.set('source_uri', form.sourceUri.trim());
+          upload.set('source_uri', form.sourceUri.trim());
         }
         if (form.metadata.trim()) {
-          payload.set('metadata_json', form.metadata.trim());
+          upload.set('metadata_json', form.metadata.trim());
         }
-        payload.set('file', selectedFile);
-        response = await fetch(
-          `/api/bff/context/domains/${selectedDomainId}/artifact-uploads`,
-          {
-            method: 'POST',
-            headers: authHeaders(accessToken, false),
-            body: payload,
-          },
+        upload.set('file', selectedFile);
+        payload = await uploadArtifactFile(
+          accessToken,
+          selectedDomainId,
+          upload,
         );
       } else {
         const metadata = form.metadata.trim() ? JSON.parse(form.metadata) : {};
-        response = await fetch(
-          `/api/bff/context/domains/${selectedDomainId}/artifacts`,
-          {
-            method: 'POST',
-            headers: authHeaders(accessToken),
-            body: JSON.stringify({
-              artifact_type_id: form.artifactTypeId,
-              title: form.title.trim() || null,
-              text: form.text,
-              source_uri: form.sourceUri.trim() || null,
-              metadata,
-            }),
-          },
-        );
+        payload = await ingestArtifactText(accessToken, selectedDomainId, {
+          artifact_type_id: form.artifactTypeId,
+          title: form.title.trim() || null,
+          text: form.text,
+          source_uri: form.sourceUri.trim() || null,
+          metadata,
+        });
       }
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => ({}))) as {
-          detail?: string;
-        };
-        throw new Error(payload.detail ?? 'Artifact ingestion failed.');
-      }
-      const payload = (await response.json()) as IngestResponse;
       setLastIngest(payload);
-      await refreshDomainData(accessToken, selectedDomainId);
+      try {
+        await refreshDomainData(accessToken, selectedDomainId);
+      } catch (refreshError) {
+        // A newer refresh superseded this one and will update the data.
+        if (!isAbortError(refreshError)) {
+          throw refreshError;
+        }
+      }
       setSelectedArtifactId(payload.artifact.id);
       setViewRefreshVersion((current) => current + 1);
       setForm((current) => ({
@@ -692,9 +618,7 @@ export function ContextWorkbench() {
       setStatus('Artifact ingested and extracted');
       setActiveTab('overview');
     } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : 'Artifact ingestion failed.',
-      );
+      setError(getErrorMessage(caught, 'Artifact ingestion failed.'));
       setStatus('Ingestion failed');
     } finally {
       setIsSubmitting(false);

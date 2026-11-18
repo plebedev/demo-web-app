@@ -150,6 +150,13 @@ describe('InlineAccessPanel', () => {
     const inviteCall = allCalls.find(
       ([url]) => url === '/api/bff/access/invite-requests',
     );
+    expect(new Headers(inviteCall?.[1]?.headers).get('Content-Type')).toBe(
+      'application/json',
+    );
+    // Invite requests are anonymous; no token is attached.
+    expect(new Headers(inviteCall?.[1]?.headers).has('Authorization')).toBe(
+      false,
+    );
     const body = JSON.parse(inviteCall?.[1]?.body as string) as Record<
       string,
       string
@@ -158,5 +165,63 @@ describe('InlineAccessPanel', () => {
     expect(body['name']).toBe('Ada Lovelace');
 
     expect(await screen.findByText('Request received.')).toBeInTheDocument();
+  });
+
+  it('sends the redemption code as JSON without an access token', async () => {
+    const fetchMock = vi.fn<
+      (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+    >(async () =>
+      Response.json({
+        access_token: 'new-rag-token',
+        experience_id: 'rag-demo',
+        expires_at: '2027-01-01T00:00:00Z',
+        redirect_path: '/rag-demo',
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <InlineAccessPanel experienceId="rag-demo" onAccessGranted={vi.fn()} />,
+    );
+    fireEvent.change(screen.getByLabelText('Invitation code'), {
+      target: { value: 'demo-json' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Redeem' }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('/api/bff/access/redeem');
+    expect(init?.method).toBe('POST');
+    expect(JSON.parse(init?.body as string)).toEqual({ code: 'demo-json' });
+    const headers = new Headers(init?.headers);
+    expect(headers.get('Content-Type')).toBe('application/json');
+    expect(headers.has('Authorization')).toBe(false);
+  });
+
+  it('falls back to a generic message when the error body is not JSON', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response('<html>Bad gateway</html>', {
+            status: 502,
+            headers: { 'Content-Type': 'text/html' },
+          }),
+      ),
+    );
+
+    render(
+      <InlineAccessPanel experienceId="rag-demo" onAccessGranted={vi.fn()} />,
+    );
+    fireEvent.change(screen.getByLabelText('Invitation code'), {
+      target: { value: 'demo-code' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Redeem' }));
+
+    expect(
+      await screen.findByText('Invitation code validation failed.'),
+    ).toBeInTheDocument();
   });
 });

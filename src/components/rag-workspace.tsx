@@ -14,83 +14,27 @@ import { useRouter } from 'next/navigation';
 import { clearStoredAccessToken } from '@/lib/access-token';
 import { InlineAccessPanel } from '@/components/inline-access-panel';
 import { useProtectedAccess } from '@/hooks/use-protected-access';
+import { getErrorMessage, isAbortError } from '@/lib/api/http';
+import {
+  RagCitation,
+  RagConversation,
+  RagMessage,
+  RagPersona,
+  RagPersonaDocument,
+  createRagConversation,
+  createRagPersona,
+  deleteRagPersona,
+  getRagConversation,
+  listRagConversations,
+  listRagPersonaDocuments,
+  listRagPersonas,
+  removeRagPersonaDocument,
+  sendRagMessage,
+  updateRagPersona,
+  uploadRagPersonaDocument,
+} from '@/lib/api/rag';
 
 type RagTab = 'chat' | 'configuration' | 'about';
-
-type RagPersona = {
-  id: number;
-  name: string;
-  instructions: string;
-  capabilities: string | null;
-  tool_config: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-};
-
-type PersonaListResponse = {
-  personas: RagPersona[];
-};
-
-type RagPersonaDocument = {
-  document_id: number;
-  source: string;
-  title: string | null;
-  display_name: string | null;
-  chunk_count: number;
-  linked_at: string;
-};
-
-type PersonaDocumentListResponse = {
-  documents: RagPersonaDocument[];
-};
-
-type RagConversation = {
-  id: number;
-  persona_id: number | null;
-  persona_name: string | null;
-  title: string | null;
-  status: string;
-  created_at: string;
-  updated_at: string;
-};
-
-type RagMessage = {
-  id: number;
-  role: 'user' | 'assistant' | string;
-  content: string;
-  turn_index: number;
-  metadata: string | null;
-  created_at: string;
-};
-
-type RagCitation = {
-  id: number;
-  message_id: number;
-  document_id: number;
-  chunk_id: number;
-  chunk_index: number;
-  source: string;
-  title: string | null;
-  snippet: string;
-  rank: number;
-};
-
-type ConversationListResponse = {
-  conversations: RagConversation[];
-};
-
-type ConversationDetailResponse = {
-  conversation: RagConversation;
-  messages: RagMessage[];
-};
-
-type ConversationMessageResponse = {
-  user_message: RagMessage;
-  assistant_message: RagMessage;
-  citations: RagCitation[];
-  turns_remaining: number;
-};
 
 type PersonaFormState = {
   name: string;
@@ -117,13 +61,6 @@ const emptyDocumentForm: DocumentFormState = {
   inputText: '',
   file: null,
 };
-
-function authHeaders(accessToken: string): HeadersInit {
-  return {
-    Authorization: `Bearer ${accessToken}`,
-    'Content-Type': 'application/json',
-  };
-}
 
 function renderInlineMarkdown(text: string): ReactNode[] {
   const pattern = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\(https?:\/\/[^)]+\))/g;
@@ -281,21 +218,15 @@ export function RagWorkspace() {
     if (!accessToken) {
       return;
     }
-    let active = true;
+    const controller = new AbortController();
+    const { signal } = controller;
     const token = accessToken;
 
     async function loadPersonas() {
       setIsLoadingPersonas(true);
       try {
-        const response = await fetch('/api/bff/rag/personas', {
-          cache: 'no-store',
-          headers: authHeaders(token),
-        });
-        if (!response.ok) {
-          throw new Error('Unable to load personas.');
-        }
-        const payload = (await response.json()) as PersonaListResponse;
-        if (!active) {
+        const payload = await listRagPersonas(token, { signal });
+        if (signal.aborted) {
           return;
         }
         setPersonas(payload.personas);
@@ -319,16 +250,16 @@ export function RagWorkspace() {
         });
         setError(null);
       } catch (loadError) {
-        if (!active) {
+        if (signal.aborted || isAbortError(loadError)) {
           return;
         }
         setError(
-          loadError instanceof Error
-            ? loadError.message
-            : 'Unable to load personas.',
+          getErrorMessage(loadError, 'Unable to load personas.', {
+            preferDetail: false,
+          }),
         );
       } finally {
-        if (active) {
+        if (!signal.aborted) {
           setIsLoadingPersonas(false);
         }
       }
@@ -337,7 +268,7 @@ export function RagWorkspace() {
     void loadPersonas();
 
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [accessToken]);
 
@@ -345,21 +276,15 @@ export function RagWorkspace() {
     if (!accessToken) {
       return;
     }
-    let active = true;
+    const controller = new AbortController();
+    const { signal } = controller;
     const token = accessToken;
 
     async function loadConversations() {
       setIsLoadingConversations(true);
       try {
-        const response = await fetch('/api/bff/rag/conversations', {
-          cache: 'no-store',
-          headers: authHeaders(token),
-        });
-        if (!response.ok) {
-          throw new Error('Unable to load conversations.');
-        }
-        const payload = (await response.json()) as ConversationListResponse;
-        if (!active) {
+        const payload = await listRagConversations(token, { signal });
+        if (signal.aborted) {
           return;
         }
         setConversations(payload.conversations);
@@ -375,16 +300,16 @@ export function RagWorkspace() {
           return payload.conversations[0]?.id || null;
         });
       } catch (loadError) {
-        if (!active) {
+        if (signal.aborted || isAbortError(loadError)) {
           return;
         }
         setError(
-          loadError instanceof Error
-            ? loadError.message
-            : 'Unable to load conversations.',
+          getErrorMessage(loadError, 'Unable to load conversations.', {
+            preferDetail: false,
+          }),
         );
       } finally {
-        if (active) {
+        if (!signal.aborted) {
           setIsLoadingConversations(false);
         }
       }
@@ -393,7 +318,7 @@ export function RagWorkspace() {
     void loadConversations();
 
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [accessToken]);
 
@@ -414,39 +339,32 @@ export function RagWorkspace() {
       setDocuments([]);
       return;
     }
-    let active = true;
+    const controller = new AbortController();
+    const { signal } = controller;
     const token = accessToken;
     const personaId = selectedPersonaId;
 
     async function loadDocuments() {
       setIsLoadingDocuments(true);
       try {
-        const response = await fetch(
-          `/api/bff/rag/personas/${personaId}/documents`,
-          {
-            cache: 'no-store',
-            headers: authHeaders(token),
-          },
-        );
-        if (!response.ok) {
-          throw new Error('Unable to load persona documents.');
-        }
-        const payload = (await response.json()) as PersonaDocumentListResponse;
-        if (!active) {
+        const payload = await listRagPersonaDocuments(token, personaId, {
+          signal,
+        });
+        if (signal.aborted) {
           return;
         }
         setDocuments(payload.documents);
       } catch (loadError) {
-        if (!active) {
+        if (signal.aborted || isAbortError(loadError)) {
           return;
         }
         setError(
-          loadError instanceof Error
-            ? loadError.message
-            : 'Unable to load persona documents.',
+          getErrorMessage(loadError, 'Unable to load persona documents.', {
+            preferDetail: false,
+          }),
         );
       } finally {
-        if (active) {
+        if (!signal.aborted) {
           setIsLoadingDocuments(false);
         }
       }
@@ -455,7 +373,7 @@ export function RagWorkspace() {
     void loadDocuments();
 
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [accessToken, selectedPersonaId]);
 
@@ -466,25 +384,18 @@ export function RagWorkspace() {
       setTurnsRemaining(null);
       return;
     }
-    let active = true;
+    const controller = new AbortController();
+    const { signal } = controller;
     const token = accessToken;
     const conversationId = selectedConversationId;
 
     async function loadConversationMessages() {
       setIsLoadingMessages(true);
       try {
-        const response = await fetch(
-          `/api/bff/rag/conversations/${conversationId}`,
-          {
-            cache: 'no-store',
-            headers: authHeaders(token),
-          },
-        );
-        if (!response.ok) {
-          throw new Error('Unable to load conversation.');
-        }
-        const payload = (await response.json()) as ConversationDetailResponse;
-        if (!active) {
+        const payload = await getRagConversation(token, conversationId, {
+          signal,
+        });
+        if (signal.aborted) {
           return;
         }
         setMessages(payload.messages);
@@ -504,16 +415,16 @@ export function RagWorkspace() {
           setChatPersonaId(payload.conversation.persona_id);
         }
       } catch (loadError) {
-        if (!active) {
+        if (signal.aborted || isAbortError(loadError)) {
           return;
         }
         setError(
-          loadError instanceof Error
-            ? loadError.message
-            : 'Unable to load conversation.',
+          getErrorMessage(loadError, 'Unable to load conversation.', {
+            preferDetail: false,
+          }),
         );
       } finally {
-        if (active) {
+        if (!signal.aborted) {
           setIsLoadingMessages(false);
         }
       }
@@ -522,7 +433,7 @@ export function RagWorkspace() {
     void loadConversationMessages();
 
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [accessToken, selectedConversationId]);
 
@@ -553,26 +464,13 @@ export function RagWorkspace() {
       capabilities: form.capabilities || null,
       tool_config: null,
     };
-    const targetPath =
-      selectedPersonaId === null
-        ? '/api/bff/rag/personas'
-        : `/api/bff/rag/personas/${selectedPersonaId}`;
-
     try {
-      const response = await fetch(targetPath, {
-        method: selectedPersonaId === null ? 'POST' : 'PUT',
-        headers: authHeaders(accessToken),
-        body: JSON.stringify(payload),
-      });
-      const responsePayload = (await response.json().catch(() => null)) as
-        | (RagPersona & { detail?: string })
-        | null;
-      if (!response.ok || responsePayload === null) {
-        throw new Error(
-          typeof responsePayload?.detail === 'string'
-            ? responsePayload.detail
-            : 'Unable to save persona.',
-        );
+      const responsePayload =
+        selectedPersonaId === null
+          ? await createRagPersona(accessToken, payload)
+          : await updateRagPersona(accessToken, selectedPersonaId, payload);
+      if (responsePayload === null) {
+        throw new Error('Unable to save persona.');
       }
 
       setPersonas((current) => {
@@ -588,11 +486,7 @@ export function RagWorkspace() {
       setSelectedPersonaId(responsePayload.id);
       setNotice('Persona saved.');
     } catch (saveError) {
-      setError(
-        saveError instanceof Error
-          ? saveError.message
-          : 'Unable to save persona.',
-      );
+      setError(getErrorMessage(saveError, 'Unable to save persona.'));
     } finally {
       setIsSavingPersona(false);
     }
@@ -607,16 +501,7 @@ export function RagWorkspace() {
     setNotice(null);
 
     try {
-      const response = await fetch(
-        `/api/bff/rag/personas/${selectedPersonaId}`,
-        {
-          method: 'DELETE',
-          headers: authHeaders(accessToken),
-        },
-      );
-      if (!response.ok) {
-        throw new Error('Unable to delete persona.');
-      }
+      await deleteRagPersona(accessToken, selectedPersonaId);
       setPersonas((current) =>
         current.filter((persona) => persona.id !== selectedPersonaId),
       );
@@ -626,9 +511,9 @@ export function RagWorkspace() {
       setNotice('Persona deleted.');
     } catch (deleteError) {
       setError(
-        deleteError instanceof Error
-          ? deleteError.message
-          : 'Unable to delete persona.',
+        getErrorMessage(deleteError, 'Unable to delete persona.', {
+          preferDetail: false,
+        }),
       );
     } finally {
       setIsSavingPersona(false);
@@ -659,27 +544,13 @@ export function RagWorkspace() {
     }
 
     try {
-      const response = await fetch(
-        `/api/bff/rag/personas/${selectedPersonaId}/documents`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body,
-        },
+      const payload = await uploadRagPersonaDocument(
+        accessToken,
+        selectedPersonaId,
+        body,
       );
-      const payload = (await response.json().catch(() => null)) as {
-        document?: RagPersonaDocument;
-        reused_existing_document?: boolean;
-        detail?: string;
-      } | null;
-      if (!response.ok || !payload?.document) {
-        throw new Error(
-          typeof payload?.detail === 'string'
-            ? payload.detail
-            : 'Unable to upload document.',
-        );
+      if (!payload?.document) {
+        throw new Error('Unable to upload document.');
       }
       const uploadedDocument = payload.document;
       setDocuments((current) => {
@@ -698,11 +569,7 @@ export function RagWorkspace() {
           : 'Document uploaded and linked to persona.',
       );
     } catch (uploadError) {
-      setError(
-        uploadError instanceof Error
-          ? uploadError.message
-          : 'Unable to upload document.',
-      );
+      setError(getErrorMessage(uploadError, 'Unable to upload document.'));
     } finally {
       setIsUploadingDocument(false);
     }
@@ -716,25 +583,24 @@ export function RagWorkspace() {
     setNotice(null);
 
     try {
-      const response = await fetch(
-        `/api/bff/rag/personas/${selectedPersonaId}/documents/${documentId}`,
-        {
-          method: 'DELETE',
-          headers: authHeaders(accessToken),
-        },
+      await removeRagPersonaDocument(
+        accessToken,
+        selectedPersonaId,
+        documentId,
       );
-      if (!response.ok) {
-        throw new Error('Unable to remove document from persona.');
-      }
       setDocuments((current) =>
         current.filter((document) => document.document_id !== documentId),
       );
       setNotice('Document removed from persona.');
     } catch (removeError) {
       setError(
-        removeError instanceof Error
-          ? removeError.message
-          : 'Unable to remove document from persona.',
+        getErrorMessage(
+          removeError,
+          'Unable to remove document from persona.',
+          {
+            preferDetail: false,
+          },
+        ),
       );
     }
   }
@@ -747,23 +613,12 @@ export function RagWorkspace() {
     setNotice(null);
 
     try {
-      const response = await fetch('/api/bff/rag/conversations', {
-        method: 'POST',
-        headers: authHeaders(accessToken),
-        body: JSON.stringify({
-          persona_id: chatPersonaId,
-          title: chatPersona ? `${chatPersona.name} chat` : 'RAG conversation',
-        }),
+      const payload = await createRagConversation(accessToken, {
+        persona_id: chatPersonaId,
+        title: chatPersona ? `${chatPersona.name} chat` : 'RAG conversation',
       });
-      const payload = (await response.json().catch(() => null)) as
-        | (RagConversation & { detail?: string })
-        | null;
-      if (!response.ok || payload === null) {
-        throw new Error(
-          typeof payload?.detail === 'string'
-            ? payload.detail
-            : 'Unable to create conversation.',
-        );
+      if (payload === null) {
+        throw new Error('Unable to create conversation.');
       }
       setConversations((current) => [payload, ...current]);
       setSelectedConversationId(payload.id);
@@ -771,11 +626,7 @@ export function RagWorkspace() {
       setCitationsByMessageId({});
       setTurnsRemaining(10);
     } catch (createError) {
-      setError(
-        createError instanceof Error
-          ? createError.message
-          : 'Unable to create conversation.',
-      );
+      setError(getErrorMessage(createError, 'Unable to create conversation.'));
     }
   }
 
@@ -790,23 +641,13 @@ export function RagWorkspace() {
 
     const content = chatInput.trim();
     try {
-      const response = await fetch(
-        `/api/bff/rag/conversations/${selectedConversationId}/messages`,
-        {
-          method: 'POST',
-          headers: authHeaders(accessToken),
-          body: JSON.stringify({ content }),
-        },
+      const payload = await sendRagMessage(
+        accessToken,
+        selectedConversationId,
+        content,
       );
-      const payload = (await response.json().catch(() => null)) as
-        | (ConversationMessageResponse & { detail?: string })
-        | null;
-      if (!response.ok || payload === null) {
-        throw new Error(
-          typeof payload?.detail === 'string'
-            ? payload.detail
-            : 'Unable to send message.',
-        );
+      if (payload === null) {
+        throw new Error('Unable to send message.');
       }
       setMessages((current) => [
         ...current,
@@ -827,11 +668,7 @@ export function RagWorkspace() {
         ),
       );
     } catch (sendError) {
-      setError(
-        sendError instanceof Error
-          ? sendError.message
-          : 'Unable to send message.',
-      );
+      setError(getErrorMessage(sendError, 'Unable to send message.'));
     } finally {
       setIsSendingMessage(false);
     }

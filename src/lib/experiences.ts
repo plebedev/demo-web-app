@@ -16,10 +16,6 @@ export type Experience = {
   invite_request_available: boolean;
 };
 
-export type ExperienceListResponse = {
-  experiences: Experience[];
-};
-
 export const fallbackExperiences: Experience[] = [
   {
     id: 'messy-notes',

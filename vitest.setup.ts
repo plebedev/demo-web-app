@@ -28,7 +28,10 @@ class InMemoryStorage implements Storage {
   }
 }
 
-Object.defineProperty(window, 'localStorage', {
-  value: new InMemoryStorage(),
-  writable: true,
-});
+// Server-side tests run in the node environment, where there is no window.
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'localStorage', {
+    value: new InMemoryStorage(),
+    writable: true,
+  });
+}
